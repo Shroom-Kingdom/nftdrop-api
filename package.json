@@ -1,0 +1,43 @@
+{
+  "private": true,
+  "name": "api",
+  "version": "1.0.0",
+  "description": "Shroom Kingdom Cloudflare Workers API",
+  "main": "dist/worker.js",
+  "scripts": {
+    "build": "webpack",
+    "format": "prettier --write  '*.{json,js}' 'src/**/*.{js,ts}' 'test/**/*.{js,ts}'",
+    "lint": "eslint --max-warnings=0 src && prettier --check '*.{json,js}' 'src/**/*.{js,ts}' 'test/**/*.{js,ts}'",
+    "test": "jest --config jestconfig.json --verbose"
+  },
+  "author": "author",
+  "license": "MIT OR Apache-2.0",
+  "dependencies": {
+    "@textile/hub": "^6",
+    "itty-router": "2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.15.0",
+    "@babel/plugin-transform-typescript": "^7.15.0",
+    "@babel/preset-env": "^7.15.0",
+    "@cloudflare/workers-types": "^2",
+    "@types/jest": "^27",
+    "@types/service-worker-mock": "^2",
+    "@typescript-eslint/eslint-plugin": "^4.29.2",
+    "@typescript-eslint/parser": "^4.29.2",
+    "babel-loader": "^8.2.2",
+    "eslint": "^7",
+    "eslint-config-prettier": "^8",
+    "eslint-config-typescript": "^3",
+    "eslint-plugin-import": "^2",
+    "eslint-plugin-prettier": "^3",
+    "jest": "^27",
+    "prettier": "^2",
+    "service-worker-mock": "^2",
+    "ts-jest": "^27",
+    "ts-loader": "^9",
+    "typescript": "^4",
+    "webpack": "^5",
+    "webpack-cli": "^4"
+  }
+}
