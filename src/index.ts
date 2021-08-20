@@ -1,15 +1,13 @@
-import { Router } from 'itty-router';
+import { router } from './main';
 
-const router = Router();
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    try {
+      return router.handle(request, env);
+    } catch (e) {
+      return new Response(e.message);
+    }
+  }
+};
 
-router.get('/', () => {
-  return new Response(
-    'Hello, world! This is the root page of your Worker template.'
-  );
-});
-
-router.all('*', () => new Response('404, not found!', { status: 404 }));
-
-addEventListener('fetch', event => {
-  event.respondWith(router.handle(event.request));
-});
+export { Users } from './users';

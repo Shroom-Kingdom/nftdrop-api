@@ -1,14 +1,21 @@
 name = "api"
-type = "webpack"
+type = "javascript"
 usage_model = ''
 compatibility_flags = []
 workers_dev = true
 webpack_config = "webpack.config.js"
 
+[durable_objects]
+bindings = [
+  { name = "USERS", class_name = "Users" }
+]
+
 [build]
 command = "yarn install && yarn build"
+
 [build.upload]
-format = "service-worker"
+format = "modules"
+main = "./index.mjs"
 
 [env.production]
 route = 'api.shroomkingdom.net/*'
