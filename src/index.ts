@@ -10,4 +10,6 @@ export default {
   }
 };
 
+export { Airdrop } from './airdrop';
+export { FounderNft } from './founder-nft';
 export { Users } from './users';

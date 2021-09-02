@@ -7,7 +7,9 @@ webpack_config = "webpack.config.js"
 
 [durable_objects]
 bindings = [
-  { name = "USERS", class_name = "Users" }
+  { name = "USERS", class_name = "Users" },
+  { name = "AIRDROP", class_name = "Airdrop" },
+  { name = "FOUNDER_NFT", class_name = "FounderNft"}
 ]
 
 [build]

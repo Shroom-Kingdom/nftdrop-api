@@ -61,9 +61,7 @@ export class Users {
         const user = this.userCodec.decode(text);
         if (isLeft(user)) {
           return new Response(
-            `Bad body data:\n${JSON.stringify(user.left)}\n\nCodec:\n${
-              this.userCodecJson
-            }`,
+            `Bad body data:\n${text}\n\nCodec:\n${this.userCodecJson}`,
             {
               status: 400
             }
