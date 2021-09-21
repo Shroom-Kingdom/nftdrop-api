@@ -14,11 +14,13 @@
   "dependencies": {
     "fp-ts": "^2",
     "io-ts": "^2",
-    "itty-router": "2"
+    "itty-router": "2",
+    "pako": "^2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^2",
     "@types/jest": "^27",
+    "@types/pako": "^1",
     "@types/service-worker-mock": "^2",
     "@typescript-eslint/eslint-plugin": "^4",
     "@typescript-eslint/parser": "^4",

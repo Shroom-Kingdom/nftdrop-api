@@ -9,7 +9,6 @@ export { router as airdropRouter };
 interface AirdropRequest {
   walletId: string;
   twitter: string;
-  twitterRetweetUrl: string;
   discord: string;
   quiz: Quiz;
 }
@@ -23,8 +22,7 @@ const quizAnswers = JSON.stringify({
 } as Quiz).toLowerCase();
 
 enum AirdropRequestHeaders {
-  FounderId = 'Founder-ID',
-  DiscordBotToken = 'Discord-Bot-Token'
+  FounderId = 'Founder-ID'
 }
 
 interface DiscordMember {
@@ -82,12 +80,21 @@ router
     const airdropObj = env.AIRDROP.get(addr);
     try {
       const founderId = env.FOUNDER_NFT.newUniqueId();
+
+      // const addr = env.TWITTER.idFromName('A');
+      // console.log('addr', addr);
+      // const twitterObj = env.TWITTER.get(addr);
+      // console.log('obj', twitterObj);
+      // const origin = new URL(req.url).origin;
+      // console.log('FETCH TWITTER FOLLOWS', `${origin}/follows/marior.near`);
+      // await twitterObj.fetch(req.url);
+      // await twitterObj.fetch(`${origin}/follows/marior.near`);
+
       let res = await airdropObj.fetch(req.url, {
         method: 'PUT',
         body: await req.text(),
         headers: {
-          [AirdropRequestHeaders.FounderId]: founderId.toString(),
-          [AirdropRequestHeaders.DiscordBotToken]: env.DISCORD_BOT_TOKEN
+          [AirdropRequestHeaders.FounderId]: founderId.toString()
         }
       });
       if (!res.ok) {
@@ -104,6 +111,14 @@ router
     } catch (err) {
       return new Response(`An unknown error occured: ${err}`, { status: 500 });
     }
+  })
+  .delete('/:addr', async (req, env: Env) => {
+    if (!req.params) {
+      return new Response('', { status: 404 });
+    }
+    const addr = env.AIRDROP.idFromName(req.params.addr);
+    const obj = env.AIRDROP.get(addr);
+    return obj.fetch(req.url, { method: 'DELETE' });
   });
 
 export class Airdrop {
@@ -113,13 +128,12 @@ export class Airdrop {
   private codec: t.Type<AirdropRequest>;
   private router: Router<unknown>;
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.founderId = null;
     this.codec = t.type({
       walletId: t.string,
       twitter: t.string,
-      twitterRetweetUrl: t.string,
       discord: t.string,
       quiz: t.interface({
         platform: t.string
@@ -155,34 +169,34 @@ export class Airdrop {
           );
         }
         const airdrop = decoded.right;
-        const { discord, twitter, twitterRetweetUrl, quiz } = airdrop;
+        console.log(JSON.stringify(airdrop, undefined, 2));
+        const { discord, twitter, quiz } = airdrop;
 
         const quizError = await this.checkQuizAnswers(quiz);
         if (quizError) {
           return quizError;
         }
 
-        const discordBotToken = (req as any).headers.get(
-          AirdropRequestHeaders.DiscordBotToken
-        ); // TODO fix typings in itty-router
-        const discordError = await this.checkDiscordMembership(
-          discord,
-          discordBotToken
+        const twitterFollowError = await this.checkTwitterFollow(
+          twitter,
+          req.url,
+          env
         );
-        if (discordError) {
-          return discordError;
-        }
-
-        const twitterFollowError = await this.checkTwitterFollow(twitter);
         if (twitterFollowError) {
           return twitterFollowError;
         }
-
-        const twitterRetweetError = await this.checkTwitterRetweet(
-          twitterRetweetUrl
-        );
+        const twitterLikeError = await this.checkTwitterLike(twitter);
+        if (twitterLikeError) {
+          return twitterLikeError;
+        }
+        const twitterRetweetError = await this.checkTwitterRetweet(twitter);
         if (twitterRetweetError) {
           return twitterRetweetError;
+        }
+
+        const discordError = await this.checkDiscordMembership(discord, env);
+        if (discordError) {
+          return discordError;
         }
 
         this.founderId = (req as any).headers.get(
@@ -190,6 +204,14 @@ export class Airdrop {
         ); // TODO fix typings in itty-router
         await this.state.storage.put('founderId', this.founderId);
         return new Response(JSON.stringify(airdrop), { status: 200 });
+      })
+      .delete('*', async () => {
+        if (this.founderId) {
+          await this.state.storage.get('founderId');
+          this.founderId = null;
+          return new Response('', { status: 204 });
+        }
+        return new Response('', { status: 404 });
       });
   }
 
@@ -206,18 +228,60 @@ export class Airdrop {
   }
 
   /**
+   * Check Twitter folloiw
+   * @returns Response on error, undefined on success
+   */
+  async checkTwitterFollow(
+    username: string,
+    url: string,
+    env: Env
+  ): Promise<Response | undefined> {
+    const addr = env.TWITTER.idFromName('.');
+    const twitterObj = env.TWITTER.get(addr);
+    const origin = new URL(url).origin;
+    console.log('FETCH TWITTER FOLLOWS', `${origin}/follows/${username}`);
+    const res = await twitterObj.fetch(`${origin}/follows/${username}`);
+    // const res = await twitterObj.fetch(`${origin}/follows/${username}`);
+    console.log('FETCH TWITTER FOLLOWS RES', JSON.stringify(res, undefined, 2));
+    if (!res.ok) {
+      return res;
+    }
+    return;
+  }
+
+  /**
+   * Check Twitter like
+   * @returns Response on error, undefined on success
+   */
+  async checkTwitterLike(twitterHandle: string): Promise<Response | undefined> {
+    // TODO
+    return;
+  }
+
+  /**
+   * Check Twitter retweet
+   * @returns Response on error, undefined on success
+   */
+  async checkTwitterRetweet(
+    twitterHandle: string
+  ): Promise<Response | undefined> {
+    // TODO
+    return;
+  }
+
+  /**
    * Check Discord membership
    * @returns Response on error, undefined on success
    */
   async checkDiscordMembership(
     discordHandle: string,
-    discordBotToken: string
+    env: Env
   ): Promise<Response | undefined> {
     const res = await fetch(
       `https://discord.com/api/guilds/168893527357521920/members/search?query=${discordHandle}`,
       {
         headers: {
-          Authorization: `Bot ${discordBotToken}`
+          Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`
         }
       }
     );
@@ -237,26 +301,6 @@ export class Airdrop {
         left({ code: PutAirdropErrorResponseCode.NoDiscordMember })
       );
     }
-  }
-
-  /**
-   * Check Twitter folloiw
-   * @returns Response on error, undefined on success
-   */
-  async checkTwitterFollow(
-    twitterHandle: string
-  ): Promise<Response | undefined> {
-    // TODO
-    return;
-  }
-
-  /**
-   * Check Twitter retweet
-   * @returns Response on error, undefined on success
-   */
-  async checkTwitterRetweet(retweetUrl: string): Promise<Response | undefined> {
-    // TODO
-    return;
   }
 
   async initialize(): Promise<void> {

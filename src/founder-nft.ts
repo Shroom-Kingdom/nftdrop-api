@@ -8,7 +8,6 @@ export { router as founderNftRouter };
 export interface FounderNftRequest {
   walletId: string;
   twitter: string;
-  twitterRetweetUrl: string;
   discord: string;
 }
 router.get(':id', async (req, env: Env) => {
@@ -33,7 +32,6 @@ export class FounderNft {
     this.codec = t.strict({
       walletId: t.string,
       twitter: t.string,
-      twitterRetweetUrl: t.string,
       discord: t.string
     });
     this.router = Router()

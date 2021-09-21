@@ -5,11 +5,15 @@ export default {
     try {
       return router.handle(request, env);
     } catch (e) {
-      return new Response(e.message);
+      if (e instanceof Error) {
+        return new Response(e.message);
+      }
+      return new Response('Unknown Error', { status: 500 });
     }
   }
 };
 
 export { Airdrop } from './airdrop';
 export { FounderNft } from './founder-nft';
+export { Twitter } from './twitter';
 export { Users } from './users';
