@@ -1,9 +1,10 @@
 declare interface Env {
   // Durable Objects
-  USERS: DurableObjectNamespace;
-  AIRDROP: DurableObjectNamespace;
-  FOUNDER_NFT: DurableObjectNamespace;
-  TWITTER: DurableObjectNamespace;
+  DISCORD: DurableObjectNamespace;
+  // USERS: DurableObjectNamespace;
+  // AIRDROP: DurableObjectNamespace;
+  // FOUNDER_NFT: DurableObjectNamespace;
+  // TWITTER: DurableObjectNamespace;
 
   // Environment variables
   DISCORD_BOT_TOKEN: string;
@@ -12,6 +13,6 @@ declare interface Env {
   TWITTER_BEARER_TOKEN: string;
 }
 
-declare interface User {
-  name: string;
-}
+// declare interface User {
+//   name: string;
+// }

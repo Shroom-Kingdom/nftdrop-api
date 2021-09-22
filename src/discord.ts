@@ -1,14 +1,37 @@
-import { Router } from 'itty-router';
+import { Router, Request } from 'itty-router';
 
 const router = Router({ base: '/discord' });
 export { router as discordRouter };
 
 interface DiscordUser {
   id: string;
+  username: string;
+  discriminator: string;
   createdAt: string;
+  refreshToken: string;
+  isMember: boolean;
+  verified: boolean;
+  acceptedRules: boolean;
+  discordsComVote: boolean;
+  topGgVote: boolean;
 }
 
 router
+  .get('/:id', async (req, env: Env) => {
+    const id = req.params?.id;
+    if (id == null) {
+      return new Response('', { status: 400 });
+    }
+    const addr = env.DISCORD.idFromName(id);
+    const obj = env.DISCORD.get(addr);
+    const res = await obj.fetch(req.url);
+    if (!res.ok) {
+      console.error(await res.text());
+      console.error(res.statusText);
+      return new Response('', { status: 400 });
+    }
+    return new Response(await res.text());
+  })
   .post('/token', async (req, env: Env) => {
     if (!req.json) {
       return new Response('', { status: 400 });
@@ -23,25 +46,9 @@ router
     body.append('grant_type', 'authorization_code');
     body.append('code', code);
     body.append('redirect_uri', 'http://localhost:3000/');
-    body.append('scope', 'identify guilds');
-    const res = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      body
-    });
-    if (!res.ok) {
-      console.error(await res.text());
-      console.error(res.statusText);
-      return new Response('', { status: 400 });
-    }
-    const { access_token: accessToken } = await res.json();
-    await fetchUserInfo(accessToken);
+    body.append('scope', 'identify guilds email');
 
-    const headers = new Headers(res.headers);
-    headers.set(
-      'Access-Control-Allow-Origin',
-      (req as any).headers.get('Origin')
-    );
-    return new Response(text, { headers });
+    return saveDiscordUser(req, body, env);
   })
   .post('/refresh', async (req, env: Env) => {
     if (!req.json) {
@@ -56,31 +63,47 @@ router
     body.append('client_secret', env.DISCORD_CLIENT_SECRET);
     body.append('grant_type', 'refresh_token');
     body.append('refresh_token', refresh_token);
-    const res = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      body
-    });
-    if (!res.ok) {
-      console.error(await res.text());
-      console.error(res.statusText);
-      return new Response('', { status: 400 });
-    }
-    const { access_token: accessToken } = await res.json();
-    const user = await fetchUserInfo(accessToken);
-    if (user == null) {
-      return new Response('', { status: 400 });
-    }
 
-    const headers = new Headers(res.headers);
-    headers.set(
-      'Access-Control-Allow-Origin',
-      (req as any).headers.get('Origin')
-    );
-    return new Response(JSON.stringify(user), { headers });
+    return saveDiscordUser(req, body, env);
   });
 
+async function saveDiscordUser(req: Request, body: URLSearchParams, env: Env) {
+  const res = await fetch('https://discord.com/api/oauth2/token', {
+    method: 'POST',
+    body,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  });
+  if (!res.ok) {
+    console.error('Discord token', await res.text(), body);
+    return new Response('', { status: 400 });
+  }
+  const { access_token: accessToken, refresh_token: refreshToken } =
+    await res.json();
+  const user = await fetchUserInfo(accessToken, refreshToken, env);
+  if (user == null) {
+    return new Response('', { status: 400 });
+  }
+
+  const addr = env.DISCORD.idFromName(user.id);
+  const obj = env.DISCORD.get(addr);
+  const objRes = await obj.fetch(req.url, {
+    method: 'PUT',
+    body: JSON.stringify(user)
+  });
+  if (!objRes.ok) {
+    console.error('Discord DO', await objRes.text());
+    return new Response('', { status: 400 });
+  }
+
+  return new Response(JSON.stringify(user));
+}
+
 async function fetchUserInfo(
-  accessToken: string
+  accessToken: string,
+  refreshToken: string,
+  env: Env
 ): Promise<DiscordUser | undefined> {
   const res = await fetch('https://discord.com/api/users/@me', {
     headers: {
@@ -88,26 +111,53 @@ async function fetchUserInfo(
     }
   });
   if (!res.ok) {
-    console.error(await res.text());
+    console.error('fetch discord user', await res.text());
     return;
   }
-  const { id } = await res.json();
+  const { id, username, discriminator, verified } = await res.json();
   const createdAt = convertIDtoDate(id);
 
   const guildRes = await fetch(
-    `https://discord.com/api/guilds/168893527357521920/members/${id}`
+    `https://discord.com/api/guilds/168893527357521920/members/${id}`,
+    {
+      headers: {
+        Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`
+      }
+    }
   );
   if (!guildRes.ok) {
-    console.error(await res.text());
-    return;
+    console.error('fetch guild member', await guildRes.text());
+    return {
+      id,
+      username,
+      discriminator,
+      createdAt: createdAt.toISOString(),
+      refreshToken,
+      isMember: false,
+      verified,
+      acceptedRules: false,
+      discordsComVote: false,
+      topGgVote: false
+    };
   }
-  const { pending } = await res.json();
-  if (pending) {
-    return;
-  }
+  const { roles }: { roles: string[] } = await guildRes.json();
+  const newMemberRole = '880382185213923339';
+  const discordsComVoteRole = '888329979958558781';
+  const topGgVoteRole = '888885237222899753';
+  const acceptedRules = !roles.includes(newMemberRole);
+  const discordsComVote = roles.includes(discordsComVoteRole);
+  const topGgVote = roles.includes(topGgVoteRole);
   return {
     id,
-    createdAt: createdAt.toISOString()
+    username,
+    discriminator,
+    createdAt: createdAt.toISOString(),
+    refreshToken,
+    isMember: true,
+    verified,
+    acceptedRules,
+    discordsComVote,
+    topGgVote
   };
 }
 
@@ -116,4 +166,48 @@ function convertIDtoDate(id: string): Date {
   const m = 64 - bin.length;
   const unixbin = bin.substring(0, 42 - m);
   return new Date(parseInt(unixbin, 2) + 1420070400000);
+}
+
+export class Discord {
+  private state: DurableObjectState;
+  private initializePromise: Promise<void> | undefined;
+  private user: DiscordUser | null;
+  private router: Router<unknown>;
+
+  constructor(state: DurableObjectState) {
+    this.state = state;
+    this.user = null;
+    this.router = Router()
+      .get('*', async () => {
+        if (this.user) {
+          return new Response(JSON.stringify(this.user));
+        }
+        return new Response('', { status: 404 });
+      })
+      .put('*', async req => {
+        if (!req.json) {
+          return new Response('', { status: 400 });
+        }
+        const user: DiscordUser = await req.json();
+        console.log('put', user);
+        this.state.storage.put('user', user);
+        return new Response('', { status: 204 });
+      });
+  }
+
+  async initialize(): Promise<void> {
+    this.user = await this.state.storage.get('user');
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (!this.initializePromise) {
+      this.initializePromise = this.initialize().catch(err => {
+        this.initializePromise = undefined;
+        throw err;
+      });
+    }
+    await this.initializePromise;
+
+    return this.router.handle(request);
+  }
 }

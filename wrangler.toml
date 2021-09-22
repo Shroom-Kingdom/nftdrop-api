@@ -1,4 +1,4 @@
-name = "api"
+name = "airdrop"
 type = "javascript"
 usage_model = ''
 compatibility_flags = []
@@ -7,11 +7,16 @@ compatibility_date = "2021-09-20"
 
 [durable_objects]
 bindings = [
-  { name = "USERS", class_name = "Users" },
-  { name = "AIRDROP", class_name = "Airdrop" },
-  { name = "FOUNDER_NFT", class_name = "FounderNft"},
-  { name = "TWITTER", class_name = "Twitter"}
+  { name = "DISCORD", class_name = "Discord" }
+  # { name = "USERS", class_name = "Users" },
+  # { name = "AIRDROP", class_name = "Airdrop" },
+  # { name = "FOUNDER_NFT", class_name = "FounderNft"},
+  # { name = "TWITTER", class_name = "Twitter"}
 ]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Discord"]
 
 [build]
 command = "yarn install && yarn build"
@@ -20,6 +25,6 @@ command = "yarn install && yarn build"
 format = "modules"
 main = "./index.mjs"
 
-[env.production]
-route = 'api.shroomkingdom.net/*'
-zone_id = 'f0cc6af324b9ef33f40a1ef5edf5b1fd'
+# [env.production]
+# route = 'api.shroomkingdom.net/*'
+# zone_id = 'f0cc6af324b9ef33f40a1ef5edf5b1fd'
