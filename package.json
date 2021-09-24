@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Shroom Kingdom Cloudflare Workers API",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --outfile=dist/index.mjs --format=esm",
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.mjs --format=esm --minify",
     "format": "prettier --write  '*.{json,js}' 'src/**/*.{js,ts}' 'test/**/*.{js,ts}'",
     "lint": "eslint --max-warnings=0 src && prettier --check '*.{json,js}' 'src/**/*.{js,ts}' 'test/**/*.{js,ts}'",
     "test": "jest --config jestconfig.json --verbose"
@@ -12,6 +12,7 @@
   "author": "author",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
+    "crypto-js": "^4.1.1",
     "fp-ts": "^2",
     "io-ts": "^2",
     "itty-router": "2",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^2",
+    "@types/crypto-js": "^4.0.2",
     "@types/jest": "^27",
     "@types/pako": "^1",
     "@types/service-worker-mock": "^2",
