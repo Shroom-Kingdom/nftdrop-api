@@ -10,8 +10,10 @@ interface DiscordUser {
   createdAt: string;
   refreshToken: string;
   isMember: boolean;
+  isHumanguildMember: boolean;
   verified: boolean;
   acceptedRules: boolean;
+  solvedCaptcha: boolean;
   discordsComVote: boolean;
   topGgVote: boolean;
 }
@@ -117,7 +119,12 @@ async function fetchUserInfo(
   const { id, username, discriminator, verified } = await res.json();
   const createdAt = convertIDtoDate(id);
 
-  const guildRes = await fetch(
+  const guildRes = await fetch(`https://discord.com/api/users/@me/guilds`, {
+    headers: {
+      Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`
+    }
+  });
+  const shrmGuildRes = await fetch(
     `https://discord.com/api/guilds/168893527357521920/members/${id}`,
     {
       headers: {
@@ -125,7 +132,7 @@ async function fetchUserInfo(
       }
     }
   );
-  if (!guildRes.ok) {
+  if (!guildRes.ok || !shrmGuildRes.ok) {
     console.error('fetch guild member', await guildRes.text());
     return {
       id,
@@ -134,17 +141,25 @@ async function fetchUserInfo(
       createdAt: createdAt.toISOString(),
       refreshToken,
       isMember: false,
+      isHumanguildMember: false,
       verified,
       acceptedRules: false,
+      solvedCaptcha: false,
       discordsComVote: false,
       topGgVote: false
     };
   }
-  const { roles }: { roles: string[] } = await guildRes.json();
+  const { roles }: { roles: string[] } = await shrmGuildRes.json();
+  const guilds: { id: string }[] = await guildRes.json();
+  const guildIds = guilds.map(guild => guild.id);
+  const isMember = guildIds.includes('168893527357521920');
+  const isHumanguildMember = guildIds.includes('808933630683775008');
   const newMemberRole = '880382185213923339';
+  const memberRole = '891312134733045850';
   const discordsComVoteRole = '888329979958558781';
   const topGgVoteRole = '888885237222899753';
   const acceptedRules = !roles.includes(newMemberRole);
+  const solvedCaptcha = roles.includes(memberRole);
   const discordsComVote = roles.includes(discordsComVoteRole);
   const topGgVote = roles.includes(topGgVoteRole);
   return {
@@ -153,9 +168,11 @@ async function fetchUserInfo(
     discriminator,
     createdAt: createdAt.toISOString(),
     refreshToken,
-    isMember: true,
+    isMember,
+    isHumanguildMember,
     verified,
     acceptedRules,
+    solvedCaptcha,
     discordsComVote,
     topGgVote
   };

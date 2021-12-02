@@ -30,7 +30,3 @@ export default {
 };
 
 export { Discord } from './discord';
-// export { Airdrop } from './airdrop';
-// export { FounderNft } from './founder-nft';
-// export { Twitter } from './twitter';
-// export { Users } from './users';
