@@ -7,12 +7,18 @@ compatibility_date = "2021-09-20"
 
 [durable_objects]
 bindings = [
-  { name = "DISCORD", class_name = "Discord" }
+  { name = "DISCORD", class_name = "Discord" },
+  { name = "TWITTER", class_name = "Twitter" },
+  { name = "LINKDROP", class_name = "Linkdrop" }
 ]
 
 [[migrations]]
 tag = "v1"
 new_classes = ["Discord"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["Linkdrop", "Twitter"]
 
 [build]
 command = "yarn install && yarn build"

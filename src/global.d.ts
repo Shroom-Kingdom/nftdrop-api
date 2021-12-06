@@ -1,6 +1,8 @@
 declare interface Env {
   // Durable Objects
   DISCORD: DurableObjectNamespace;
+  TWITTER: DurableObjectNamespace;
+  LINKDROP: DurableObjectNamespace;
 
   // Environment variables
   DISCORD_BOT_TOKEN: string;

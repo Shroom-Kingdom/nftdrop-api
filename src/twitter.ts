@@ -1,6 +1,13 @@
-import { Router } from 'itty-router';
+import { Router, Request } from 'itty-router';
 
-import { REQUIRED_RT_HASHTAGS, RETWEET_ID, TWITTER_ACCOUNT_ID } from './config';
+import {
+  REQUIRED_RT_HASHTAGS,
+  RETWEET_ID,
+  TWITTER_ACCOUNT_ID,
+  TWITTER_ACCOUNT_ID_HUMANGUILD,
+  TWITTER_ACCOUNT_ID_NEAR_GAMES,
+  TWITTER_ACCOUNT_ID_NEAR_PROTOCOL
+} from './config';
 import { obtainOauthRequestToken, obtainOauthAccessToken } from './oauth';
 import { createSignature } from './signature';
 
@@ -8,11 +15,13 @@ const router = Router({ base: '/twitter' });
 export { router as twitterRouter };
 
 interface TwitterUser {
-  createdAt: string | Date;
   name: string;
   screenName: string;
   verified: boolean;
   isFollowing: boolean;
+  isFollowingHumanguild: boolean;
+  isFollowingNEARGames: boolean;
+  isFollowingNEARProtocol: boolean;
   retweeted: boolean;
   liked: boolean;
 }
@@ -30,7 +39,27 @@ interface LikedTweet {
   id_str: string;
 }
 
+export function isTwitterUserOk(user: TwitterUser): boolean {
+  return user.verified && user.isFollowing && user.retweeted && user.liked;
+}
+
 router
+  .get('/user/:id', async (req, env: Env) => {
+    const id = req.params?.id;
+    if (id == null) {
+      return new Response('', { status: 400 });
+    }
+    const addr = env.TWITTER.idFromName(id);
+    const obj = env.TWITTER.get(addr);
+    const res = await obj.fetch(req.url);
+    if (!res.ok) {
+      console.error(
+        `Twitter GET user error: [${res.status}] ${await res.text()}`
+      );
+      return new Response('', { status: res.status });
+    }
+    return new Response(await res.text());
+  })
   .get('/request-token', async (req, env: Env) => {
     const obtainRequestTokenConfig = {
       apiUrl: 'https://api.twitter.com/oauth/request_token',
@@ -63,7 +92,7 @@ router
       });
     oauthToken = oauth_token;
 
-    const user = await verifyUser(oauthToken, oauthTokenSecret, env);
+    const user = await verifyUser(req, oauthToken, oauthTokenSecret, env);
     if (user instanceof Response) {
       return user;
     }
@@ -78,7 +107,7 @@ router
     }
     const { oauthToken, oauthTokenSecret } = await req.json();
 
-    const user = await verifyUser(oauthToken, oauthTokenSecret, env);
+    const user = await verifyUser(req, oauthToken, oauthTokenSecret, env);
     if (user instanceof Response) {
       return user;
     }
@@ -87,6 +116,7 @@ router
   });
 
 async function verifyUser(
+  req: Request,
   oauthToken: string,
   oauthTokenSecret: string,
   env: Env
@@ -111,47 +141,32 @@ async function verifyUser(
     }
   });
   if (!res.ok) {
-    console.error(await res.text());
-    console.error(res.status);
+    console.error(
+      `Twitter verify credentials error: [${res.status}] ${await res.text()}`
+    );
     return new Response('', { status: res.status });
   }
-  const {
-    created_at: createdAt,
-    name,
-    screen_name: screenName,
-    email
-  } = await res.json();
+  const { name, screen_name: screenName, email } = await res.json();
 
-  apiUrl = `https://api.twitter.com/1.1/friendships/lookup.json`;
-  qs = {
-    user_id: TWITTER_ACCOUNT_ID
+  const follows = {
+    [TWITTER_ACCOUNT_ID]: false,
+    [TWITTER_ACCOUNT_ID_HUMANGUILD]: false,
+    [TWITTER_ACCOUNT_ID_NEAR_GAMES]: false,
+    [TWITTER_ACCOUNT_ID_NEAR_PROTOCOL]: false
   };
-  signature = createSignature({
-    apiUrl,
-    consumerKey: env.CONSUMER_KEY,
-    consumerSecret: env.CONSUMER_SECRET,
+  const isFollowingRes = await checkIsFollowing(
     oauthToken,
     oauthTokenSecret,
-    method: 'GET',
-    qs
-  });
-  search = new URLSearchParams(qs);
-  res = await fetch(`${apiUrl}?${search.toString()}`, {
-    headers: {
-      Authorization: `OAuth ${signature}`
-    }
-  });
-  if (!res.ok) {
-    console.error(await res.text());
-    console.error(res.status);
-    return new Response('', { status: res.status });
-  }
-  const follows: { connections: ('following' | string)[]; id_str: string }[] =
-    await res.json();
-  const isFollowing = !!follows.find(
-    ({ connections, id_str }) =>
-      id_str === TWITTER_ACCOUNT_ID && connections.includes('following')
+    follows,
+    env
   );
+  if (isFollowingRes instanceof Response) {
+    return isFollowingRes;
+  }
+  const isFollowing = follows[TWITTER_ACCOUNT_ID];
+  const isFollowingHumanguild = follows[TWITTER_ACCOUNT_ID_HUMANGUILD];
+  const isFollowingNEARGames = follows[TWITTER_ACCOUNT_ID_NEAR_GAMES];
+  const isFollowingNEARProtocol = follows[TWITTER_ACCOUNT_ID_NEAR_PROTOCOL];
 
   apiUrl = `https://api.twitter.com/1.1/statuses/user_timeline.json`;
   qs = {
@@ -176,8 +191,9 @@ async function verifyUser(
     }
   });
   if (!res.ok) {
-    console.error(await res.text());
-    console.error(res.status);
+    console.error(
+      `Twitter GET user timeline error: [${res.status}] ${await res.text()}`
+    );
     return new Response('', { status: res.status });
   }
   const retweets: Retweet[] = await res.json();
@@ -213,189 +229,128 @@ async function verifyUser(
     }
   });
   if (!res.ok) {
-    console.error(await res.text());
-    console.error(res.status);
+    console.error(
+      `Twitter GET favorites list: [${res.status}] ${await res.text()}`
+    );
     return new Response('', { status: res.status });
   }
   const likes: LikedTweet[] = await res.json();
   const liked = likes[0]?.id_str === RETWEET_ID;
 
-  return {
-    createdAt,
+  const user: TwitterUser = {
     name,
     screenName,
     verified: !!email,
     isFollowing,
+    isFollowingHumanguild,
+    isFollowingNEARGames,
+    isFollowingNEARProtocol,
     retweeted,
     liked
   };
+
+  const addr = env.TWITTER.idFromName(user.screenName);
+  const obj = env.TWITTER.get(addr);
+  const objRes = await obj.fetch(req.url, {
+    method: 'PUT',
+    body: JSON.stringify(user)
+  });
+  if (!objRes.ok) {
+    console.error(
+      `Twitter PUT durable object error: [${
+        objRes.status
+      }] ${await objRes.text()}`
+    );
+    return new Response('', { status: 400 });
+  }
+
+  return user;
 }
 
-// import { Router } from 'itty-router';
-// import { gzip, ungzip } from 'pako';
+async function checkIsFollowing(
+  oauthToken: string,
+  oauthTokenSecret: string,
+  accounts: Record<string, boolean>,
+  env: Env
+): Promise<undefined | Response> {
+  const apiUrl = `https://api.twitter.com/1.1/friendships/lookup.json`;
+  const qs = {
+    user_id: Object.keys(accounts).join(',')
+  };
 
-// interface FollowerResponse {
-//   data: Follower[];
-//   meta: {
-//     result_count: number;
-//     next_token: string;
-//   };
-// }
+  const signature = createSignature({
+    apiUrl,
+    consumerKey: env.CONSUMER_KEY,
+    consumerSecret: env.CONSUMER_SECRET,
+    oauthToken,
+    oauthTokenSecret,
+    method: 'GET',
+    qs
+  });
+  const search = new URLSearchParams({
+    user_id: Object.keys(accounts).join(',')
+  });
+  const res = await fetch(`${apiUrl}?${search.toString()}`, {
+    headers: {
+      Authorization: `OAuth ${signature}`
+    }
+  });
+  if (!res.ok) {
+    console.error(
+      `Twitter GET friendships error: [${res.status}] ${await res.text()}`
+    );
+    return new Response('', { status: res.status });
+  }
+  const follows: { connections: ('following' | string)[]; id_str: string }[] =
+    await res.json();
+  for (const accountId in accounts) {
+    const isFollowing = !!follows.find(
+      ({ connections, id_str }) =>
+        id_str === accountId && connections.includes('following')
+    );
+    accounts[accountId] = isFollowing;
+  }
+}
 
-// interface Follower {
-//   id: string;
-//   name: string;
-//   username: string;
-//   created_at: Date | string;
-// }
+export class Twitter {
+  private state: DurableObjectState;
+  private initializePromise: Promise<void> | undefined;
+  private user: TwitterUser | null;
+  private router: Router<unknown>;
 
-// export class Twitter {
-//   private state: DurableObjectState;
-//   private initializePromise: Promise<void> | undefined;
-//   private followers: Record<string, Follower> = {};
-//   private followerPages = 0;
-//   private followersRateLimit: number[] = [];
-//   private router: Router<unknown>;
+  constructor(state: DurableObjectState) {
+    this.state = state;
+    this.user = null;
+    this.router = Router()
+      .get('*', async () => {
+        if (this.user) {
+          return new Response(JSON.stringify(this.user));
+        }
+        return new Response('', { status: 404 });
+      })
+      .put('*', async req => {
+        if (!req.json) {
+          return new Response('', { status: 400 });
+        }
+        const user: TwitterUser = await req.json();
+        this.state.storage.put('user', user);
+        return new Response('', { status: 204 });
+      });
+  }
 
-//   private readonly followersRateLimitRequests = 15;
-//   private readonly followersRateLimitTimeframe = 15.2 * 60 * 1000;
+  async initialize(): Promise<void> {
+    this.user = await this.state.storage.get('user');
+  }
 
-//   constructor(state: DurableObjectState, env: Env) {
-//     this.state = state;
-//     this.router = Router().get('/follows/:username', async ({ params }) => {
-//       console.log('TWITTER PUT');
-//       if (!params) {
-//         return new Response('', { status: 400 });
-//       }
-//       // const body = await req.json();
-//       console.log('TWITTER FOLLOWS', JSON.stringify(params, undefined, 2));
-//       this.clearOldRequestsCountingToRateLimit();
-//       this.updateFollowers(env);
+  async fetch(request: Request): Promise<Response> {
+    if (!this.initializePromise) {
+      this.initializePromise = this.initialize().catch(err => {
+        this.initializePromise = undefined;
+        throw err;
+      });
+    }
+    await this.initializePromise;
 
-//       console.log(JSON.stringify(this.followers, undefined, 2));
-
-//       if (this.followers[params.username]) {
-//         return new Response(JSON.stringify(this.followers[params.username]));
-//       }
-//       return new Response('', { status: 404 });
-//     });
-//     // .get('/liking_users', async () => {
-//     //   return new Response('', { status: 404 });
-//     // })
-//     // .get('/retweeted_by', async () => {
-//     //   return new Response('', { status: 404 });
-//     // })
-//     // .get('*', () => {
-//     //   console.log('TWITTER 404');
-//     //   return new Response('', { status: 404 });
-//     // });
-//   }
-
-//   clearOldRequestsCountingToRateLimit(): void {
-//     const now = Date.now();
-//     let clearQueue = true;
-//     if (this.followersRateLimit.length > 0) {
-//       let modified = false;
-//       while (clearQueue) {
-//         if (
-//           this.followersRateLimit[0].valueOf() <
-//           now - this.followersRateLimitTimeframe
-//         ) {
-//           this.followersRateLimit.shift();
-//           modified = true;
-//         } else {
-//           clearQueue = false;
-//           break;
-//         }
-//       }
-//       if (modified) {
-//         this.state.storage.put('followersRateLimit', this.followersRateLimit);
-//       }
-//     }
-//   }
-
-//   updateFollowers(env: Env): void {
-//     const now = Date.now();
-//     if (
-//       this.followersRateLimit.length === 0 ||
-//       this.followersRateLimit.length <
-//         ((now - this.followersRateLimit[0]) * this.followersRateLimitRequests -
-//           this.followerPages) /
-//           this.followersRateLimitTimeframe
-//     ) {
-//       // TODO state typings
-//       (this.state as any).blockConcurrencyWhile(async () => {
-//         // let followers: Follower[] = [];
-//         // let paginationToken: string | null = null;
-//         // for (let i = 0; i < 100; i++) {
-//         //   const res = await fetch(
-//         //     `https://api.twitter.com/2/users/1415961588016816129/followers?user.fields=created_at&max_results=1000${
-//         //       paginationToken ? `&pagination_token=${paginationToken}` : ''
-//         //     }`,
-//         //     {
-//         //       headers: {
-//         //         Autorization: `Bearer ${env.TWITTER_BEARER_TOKEN}`
-//         //       }
-//         //     }
-//         //   );
-//         //   if (!res.ok) {
-//         //     return res;
-//         //   }
-//         //   this.followersRateLimit.push(now);
-//         //   const followerResponse: FollowerResponse = await res.json();
-//         //   const nextFollowers: Follower[] = followerResponse.data;
-//         //   this.state.storage.put(
-//         //     `followers${i}`,
-//         //     gzip(JSON.stringify(this.followers), { to: 'string' })
-//         //   );
-//         //   followers = [...followers, ...nextFollowers];
-//         //   if (!followerResponse.meta.next_token) {
-//         //     this.followerPages = i + 1;
-//         //     this.state.storage.put(
-//         //       'followersRateLimit',
-//         //       this.followersRateLimit
-//         //     );
-//         //     break;
-//         //   }
-//         //   paginationToken = followerResponse.meta.next_token;
-//         // }
-//         // for (const follower of followers) {
-//         //   this.followers[follower.username] = follower;
-//         // }
-//       });
-//     }
-//   }
-
-//   async initialize(): Promise<void> {
-//     let followers: Follower[] = [];
-//     for (let i = 0; i < 100; i++) {
-//       const next: string | undefined = await this.state.storage.get(
-//         `followers${i}`
-//       );
-//       if (!next) {
-//         break;
-//       }
-//       followers = [...followers, ...JSON.parse(ungzip(next, { to: 'string' }))];
-//       this.followerPages = i + 1;
-//     }
-//     followers = Array.from(new Set(followers));
-//     for (const follower of followers) {
-//       this.followers[follower.username] = follower;
-//     }
-//     this.followersRateLimit =
-//       (await this.state.storage.get('followersRateLimit')) ?? [];
-//   }
-
-//   async fetch(request: Request): Promise<Response> {
-//     console.log('TWITTER HANDLE REQ', JSON.stringify(request, undefined, 2));
-//     if (!this.initializePromise) {
-//       this.initializePromise = this.initialize().catch(err => {
-//         this.initializePromise = undefined;
-//         throw err;
-//       });
-//     }
-//     await this.initializePromise;
-
-//     return this.router.handle(request);
-//   }
-// }
+    return this.router.handle(request);
+  }
+}

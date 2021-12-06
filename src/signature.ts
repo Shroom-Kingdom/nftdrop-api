@@ -80,6 +80,9 @@ export const createSignature = ({
   if (!qs) {
     qs = {};
   }
+  for (const key in qs) {
+    qs[key] = encodeURIComponent(qs[key]);
+  }
   const params = {
     ...qs,
     oauth_consumer_key: consumerKey,
@@ -103,7 +106,7 @@ export const createSignature = ({
 };
 
 const makeSignature = (
-  params: any,
+  params: Record<string, string>,
   method: string,
   apiUrl: string,
   consumerSecret: string,
@@ -111,9 +114,10 @@ const makeSignature = (
 ) => {
   const paramsBaseString = Object.keys(params)
     .sort()
-    .reduce((prev: string, el: any) => {
-      return (prev += `&${el}=${params[el]}`);
-    }, '')
+    .reduce(
+      (prev: string, key: string) => (prev += `&${key}=${params[key]}`),
+      ''
+    )
     .substr(1);
 
   const signatureBaseString = `${method.toUpperCase()}&${encodeURIComponent(
@@ -128,14 +132,14 @@ const makeSignature = (
     HmacSHA1(signatureBaseString, signingKey)
   );
 
-  const paramsWithSignature = {
+  const paramsWithSignature: Record<string, string> = {
     ...params,
     oauth_signature: encodeURIComponent(oauth_signature)
   };
 
   return Object.keys(paramsWithSignature)
     .sort()
-    .reduce((prev: string, el: any) => {
+    .reduce((prev: string, el: string) => {
       return (prev += `,${el}="${paramsWithSignature[el]}"`);
     }, '')
     .substr(1);
