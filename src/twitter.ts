@@ -63,7 +63,7 @@ router
   .get('/request-token', async (req, env: Env) => {
     const obtainRequestTokenConfig = {
       apiUrl: 'https://api.twitter.com/oauth/request_token',
-      callbackUrl: 'http://localhost:3000/',
+      callbackUrl: new URL(req.url).origin,
       consumerKey: env.CONSUMER_KEY,
       consumerSecret: env.CONSUMER_SECRET,
       method: 'POST'

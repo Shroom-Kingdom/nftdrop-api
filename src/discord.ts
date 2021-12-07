@@ -47,7 +47,7 @@ router
     body.append('client_secret', env.DISCORD_CLIENT_SECRET);
     body.append('grant_type', 'authorization_code');
     body.append('code', code);
-    body.append('redirect_uri', 'http://localhost:3000/');
+    body.append('redirect_uri', new URL(req.url).origin);
     body.append('scope', 'identify guilds email');
 
     return saveDiscordUser(req, body, env);
