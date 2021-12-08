@@ -342,6 +342,7 @@ export class Twitter {
           return new Response('', { status: 400 });
         }
         const user: TwitterUser = await req.json();
+        this.user = user;
         this.state.storage.put('user', user);
         return new Response('', { status: 204 });
       });

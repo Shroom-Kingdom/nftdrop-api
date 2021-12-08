@@ -231,6 +231,7 @@ export class Discord {
           return new Response('', { status: 400 });
         }
         const user: DiscordUser = await req.json();
+        this.user = user;
         this.state.storage.put('user', user);
         return new Response('', { status: 204 });
       });
