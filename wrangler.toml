@@ -20,13 +20,25 @@ new_classes = ["Discord"]
 tag = "v2"
 new_classes = ["Linkdrop", "Twitter"]
 
+[[migrations]]
+tag = "v3"
+deleted_classes = ["Discord", "Linkdrop", "Twitter"]
+
+[[migrations]]
+tag = "v4"
+new_classes = ["Discord", "Linkdrop", "Twitter"]
+
+[[migrations]]
+tag = "v5"
+deleted_classes = ["Discord", "Linkdrop", "Twitter"]
+
+[[migrations]]
+tag = "v6"
+new_classes = ["Discord", "Linkdrop", "Twitter"]
+
 [build]
 command = "yarn install && yarn build"
 
 [build.upload]
 format = "modules"
 main = "./index.mjs"
-
-# [env.production]
-# route = 'linkdrop-api.shroomkingdom.net/*'
-# zone_id = 'f0cc6af324b9ef33f40a1ef5edf5b1fd'
