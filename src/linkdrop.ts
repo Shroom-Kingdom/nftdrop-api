@@ -1,5 +1,7 @@
 import { Router, Request } from 'itty-router';
 
+import { logErrorResponse } from './helpers';
+
 const router = Router({ base: '/linkdrop' });
 export { router as linkdropRouter };
 
@@ -19,11 +21,50 @@ router
     const obj = env.LINKDROP.get(addr);
     const res = await obj.fetch(req.url);
     if (!res.ok) {
-      console.error(await res.text());
-      console.error(res.statusText);
+      await logErrorResponse('GET Linkdrop info', res);
+    }
+    return res;
+  })
+  .post('/check', async (req, env: Env) => {
+    if (!req.json) {
       return new Response('', { status: 400 });
     }
-    return new Response(await res.text());
+    const { discordOwnerId, twitterOwnerId }: Owner = await req.json();
+
+    let discord = false;
+    if (discordOwnerId != null) {
+      const discordAddr = env.DISCORD.idFromName(discordOwnerId);
+      const discordObj = env.DISCORD.get(discordAddr);
+      const discordRes = await discordObj.fetch(req.url);
+      discord = discordRes.ok;
+    }
+
+    let twitter = false;
+    if (twitterOwnerId != null) {
+      const twitterAddr = env.TWITTER.idFromName(twitterOwnerId);
+      const twitterObj = env.TWITTER.get(twitterAddr);
+      const twitterRes = await twitterObj.fetch(req.url);
+      twitter = twitterRes.ok;
+    }
+
+    const addr = env.LINKDROP.idFromName('1');
+    const obj = env.LINKDROP.get(addr);
+    const res = await obj.fetch(req.url, {
+      method: 'POST',
+      body: JSON.stringify({
+        discordOwnerId,
+        twitterOwnerId
+      })
+    });
+    const link = res.ok ? await res.text() : null;
+
+    return new Response(
+      JSON.stringify({
+        discord,
+        twitter,
+        link
+      })
+    );
   })
   .post('/claim', async (req, env: Env) => {
     if (!req.json) {
@@ -33,35 +74,34 @@ router
     if (discordOwnerId == null || twitterOwnerId == null) {
       return new Response('', { status: 400 });
     }
-    const addr = env.DISCORD.idFromName(discordOwnerId);
-    const obj = env.DISCORD.get(addr);
-    const res = await obj.fetch(req.url);
-    if (!res.ok) {
-      console.error(await res.text());
-      console.error(res.statusText);
-      return new Response('', { status: 400 });
+
+    const discordAddr = env.DISCORD.idFromName(discordOwnerId);
+    const discordObj = env.DISCORD.get(discordAddr);
+    const discordRes = await discordObj.fetch(req.url);
+    if (!discordRes.ok) {
+      await logErrorResponse('POST Linkdrop check discord', discordRes);
     }
-  })
-  .post('/owner', async (req, env: Env) => {
-    if (!req.json) {
-      return new Response('', { status: 400 });
+
+    const twitterAddr = env.TWITTER.idFromName(twitterOwnerId);
+    const twitterObj = env.TWITTER.get(twitterAddr);
+    const twitterRes = await twitterObj.fetch(req.url);
+    if (!twitterRes.ok) {
+      await logErrorResponse('POST Linkdrop check twitter', twitterRes);
     }
-    const { discordOwnerId, twitterOwnerId }: Owner = await req.json();
-    if (discordOwnerId == null || twitterOwnerId == null) {
-      return new Response('', { status: 400 });
-    }
+
     const addr = env.LINKDROP.idFromName('1');
     const obj = env.LINKDROP.get(addr);
     const res = await obj.fetch(req.url, {
       method: 'POST',
-      body: JSON.stringify({ discordOwnerId, twitterOwnerId })
+      body: JSON.stringify({
+        discordOwnerId,
+        twitterOwnerId
+      })
     });
     if (!res.ok) {
-      console.error(await res.text());
-      console.error(res.statusText);
-      return new Response('', { status: 400 });
+      await logErrorResponse('POST Linkdrop add', res);
     }
-    return new Response(await res.text());
+    return res;
   })
   .post('/add', async (req, env: Env) => {
     if (!req.json) {
@@ -78,11 +118,9 @@ router
       body: JSON.stringify(drops)
     });
     if (!res.ok) {
-      console.error(await res.text());
-      console.error(res.statusText);
-      return new Response('', { status: 400 });
+      await logErrorResponse('POST Linkdrop add', res);
     }
-    return new Response(await res.text());
+    return res;
   });
 
 export class Linkdrop {
@@ -95,7 +133,7 @@ export class Linkdrop {
 
   constructor(state: DurableObjectState) {
     this.state = state;
-    this.router = Router()
+    this.router = Router({ base: '/linkdrop' })
       .get('/info', async () => {
         let claimed = 0;
         let unclaimed = 0;
@@ -113,39 +151,58 @@ export class Linkdrop {
           })
         );
       })
-      .post('/owner', async req => {
+      .post('/check', async req => {
         if (!req.json) {
           return new Response('', { status: 400 });
         }
         const { discordOwnerId, twitterOwnerId }: Owner = await req.json();
-        if (discordOwnerId == null || twitterOwnerId == null) {
+        if (
+          this.discordToDrop[discordOwnerId] &&
+          this.twitterToDrop[twitterOwnerId] &&
+          this.discordToDrop[discordOwnerId] ===
+            this.twitterToDrop[twitterOwnerId]
+        ) {
+          return new Response(this.discordToDrop[discordOwnerId].link);
+        }
+        return new Response('', { status: 400 });
+      })
+      .post('/claim', async req => {
+        if (!req.json) {
           return new Response('', { status: 400 });
         }
-        if (
-          this.discordToDrop[discordOwnerId] ===
-          this.twitterToDrop[twitterOwnerId]
-        ) {
-          return new Response(
-            JSON.stringify(this.discordToDrop[discordOwnerId])
-          );
+        const { discordOwnerId, twitterOwnerId }: Owner = await req.json();
+        const drop = this.drops.find(({ owner }) => owner == null);
+        if (!drop) {
+          return new Response('', { status: 403 });
         }
-        return new Response('', { status: 404 });
+        drop.owner = {
+          discordOwnerId,
+          twitterOwnerId
+        };
+        this.discordToDrop[discordOwnerId] = drop;
+        this.twitterToDrop[twitterOwnerId] = drop;
+        this.state.storage.put('drops', this.drops);
+        this.state.storage.put('discordToDrop', this.discordToDrop);
+        this.state.storage.put('twitterToDrop', this.twitterToDrop);
+        return new Response(drop.link);
       })
       .post('/add', async req => {
         if (!req.json) {
           return new Response('', { status: 400 });
         }
         const drops: { link: string }[] = await req.json();
-        this.drops.concat(drops.map(({ link }) => ({ link, owner: null })));
+        this.drops = this.drops.concat(
+          drops.map(({ link }) => ({ link, owner: null }))
+        );
         this.state.storage.put('drops', this.drops);
         return new Response('', { status: 204 });
       });
   }
 
   async initialize(): Promise<void> {
-    this.drops = await this.state.storage.get('drops');
-    this.discordToDrop = await this.state.storage.get('discordToDrop');
-    this.twitterToDrop = await this.state.storage.get('twitterToDrop');
+    this.drops = (await this.state.storage.get('drops')) ?? [];
+    this.discordToDrop = (await this.state.storage.get('discordToDrop')) ?? {};
+    this.twitterToDrop = (await this.state.storage.get('twitterToDrop')) ?? {};
   }
 
   async fetch(request: Request): Promise<Response> {

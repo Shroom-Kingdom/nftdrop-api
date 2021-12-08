@@ -61,9 +61,12 @@ router
     return new Response(await res.text());
   })
   .get('/request-token', async (req, env: Env) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let origin = (req as any).headers.get('Origin') as string;
+    if (!origin.endsWith('/')) origin += '/';
     const obtainRequestTokenConfig = {
       apiUrl: 'https://api.twitter.com/oauth/request_token',
-      callbackUrl: new URL(req.url).origin,
+      callbackUrl: origin,
       consumerKey: env.CONSUMER_KEY,
       consumerSecret: env.CONSUMER_SECRET,
       method: 'POST'
@@ -322,6 +325,12 @@ export class Twitter {
     this.state = state;
     this.user = null;
     this.router = Router()
+      .get('/linkdrop/*', async () => {
+        if (!this.user || !isTwitterUserOk(this.user)) {
+          return new Response('', { status: 403 });
+        }
+        return new Response('', { status: 200 });
+      })
       .get('*', async () => {
         if (this.user) {
           return new Response(JSON.stringify(this.user));

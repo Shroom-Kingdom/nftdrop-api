@@ -1,5 +1,8 @@
 import { Router, Request } from 'itty-router';
 
+import { DATE_THRESHOLD } from './config';
+import { logErrorResponse } from './helpers';
+
 const router = Router({ base: '/discord' });
 export { router as discordRouter };
 
@@ -16,6 +19,19 @@ interface DiscordUser {
   solvedCaptcha: boolean;
   discordsComVote: boolean;
   topGgVote: boolean;
+}
+
+export function isDiscordUserOk(user: DiscordUser): boolean {
+  return (
+    user.isMember &&
+    user.isHumanguildMember &&
+    user.verified &&
+    user.acceptedRules &&
+    user.solvedCaptcha &&
+    user.discordsComVote &&
+    user.topGgVote &&
+    new Date(user.createdAt).valueOf() < DATE_THRESHOLD.valueOf()
+  );
 }
 
 router
@@ -42,12 +58,15 @@ router
     if (code == null) {
       return new Response('', { status: 400 });
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let origin = (req as any).headers.get('Origin') as string;
+    if (!origin.endsWith('/')) origin += '/';
     const body = new URLSearchParams();
     body.append('client_id', env.DISCORD_CLIENT_ID);
     body.append('client_secret', env.DISCORD_CLIENT_SECRET);
     body.append('grant_type', 'authorization_code');
     body.append('code', code);
-    body.append('redirect_uri', new URL(req.url).origin);
+    body.append('redirect_uri', origin);
     body.append('scope', 'identify guilds email');
 
     return saveDiscordUser(req, body, env);
@@ -78,7 +97,7 @@ async function saveDiscordUser(req: Request, body: URLSearchParams, env: Env) {
     }
   });
   if (!res.ok) {
-    console.error('Discord token', await res.text(), body);
+    await logErrorResponse('POST Discord token', res);
     return new Response('', { status: 400 });
   }
   const { access_token: accessToken, refresh_token: refreshToken } =
@@ -195,6 +214,12 @@ export class Discord {
     this.state = state;
     this.user = null;
     this.router = Router()
+      .get('/linkdrop/*', async () => {
+        if (!this.user || !isDiscordUserOk(this.user)) {
+          return new Response('', { status: 403 });
+        }
+        return new Response('', { status: 200 });
+      })
       .get('*', async () => {
         if (this.user) {
           return new Response(JSON.stringify(this.user));
