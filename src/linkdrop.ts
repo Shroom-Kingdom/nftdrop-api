@@ -171,6 +171,12 @@ export class Linkdrop {
           return new Response('', { status: 400 });
         }
         const { discordOwnerId, twitterOwnerId }: Owner = await req.json();
+        if (
+          this.discordToDrop[discordOwnerId] != null ||
+          this.twitterToDrop[twitterOwnerId] != null
+        ) {
+          return new Response('', { status: 400 });
+        }
         const drop = this.drops.find(({ owner }) => owner == null);
         if (!drop) {
           return new Response('', { status: 403 });
