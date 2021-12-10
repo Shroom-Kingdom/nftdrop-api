@@ -159,8 +159,8 @@ export class Linkdrop {
         if (
           this.discordToDrop[discordOwnerId] &&
           this.twitterToDrop[twitterOwnerId] &&
-          this.discordToDrop[discordOwnerId] ===
-            this.twitterToDrop[twitterOwnerId]
+          this.discordToDrop[discordOwnerId].link ===
+            this.twitterToDrop[twitterOwnerId].link
         ) {
           return new Response(this.discordToDrop[discordOwnerId].link);
         }
@@ -187,9 +187,9 @@ export class Linkdrop {
         };
         this.discordToDrop[discordOwnerId] = drop;
         this.twitterToDrop[twitterOwnerId] = drop;
-        this.state.storage.put('drops', this.drops);
-        this.state.storage.put('discordToDrop', this.discordToDrop);
-        this.state.storage.put('twitterToDrop', this.twitterToDrop);
+        await this.saveDrops();
+        await this.state.storage.put(`discordToDrop${discordOwnerId}`, drop);
+        await this.state.storage.put(`twitterToDrop${twitterOwnerId}`, drop);
         return new Response(drop.link);
       })
       .post('/add', async req => {
@@ -200,15 +200,39 @@ export class Linkdrop {
         this.drops = this.drops.concat(
           drops.map(({ link }) => ({ link, owner: null }))
         );
-        this.state.storage.put('drops', this.drops);
+        await this.saveDrops();
         return new Response('', { status: 204 });
       });
   }
 
   async initialize(): Promise<void> {
     this.drops = (await this.state.storage.get('drops')) ?? [];
+    await this.state.storage.delete('drops');
+    for (let i = 0; i < 1000; i++) {
+      const drops: Drop[] | undefined = await this.state.storage.get(
+        `drops${i}`
+      );
+      if (!drops) break;
+      this.drops = this.drops.concat(drops);
+    }
     this.discordToDrop = (await this.state.storage.get('discordToDrop')) ?? {};
+    await this.state.storage.delete('discordToDrop');
     this.twitterToDrop = (await this.state.storage.get('twitterToDrop')) ?? {};
+    await this.state.storage.delete('twitterToDrop');
+    for (const drop of this.drops) {
+      if (!drop.owner) continue;
+      const discordToDrop: Drop | undefined = await this.state.storage.get(
+        `discordToDrop${drop.owner.discordOwnerId}`
+      );
+      if (!discordToDrop) continue;
+      this.discordToDrop[drop.owner.discordOwnerId] = discordToDrop;
+      const twitterToDrop: Drop | undefined = await this.state.storage.get(
+        `twitterToDrop${drop.owner.twitterOwnerId}`
+      );
+      if (!twitterToDrop) continue;
+      this.twitterToDrop[drop.owner.twitterOwnerId] = twitterToDrop;
+    }
+    await this.saveState();
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -221,5 +245,44 @@ export class Linkdrop {
     await this.initializePromise;
 
     return this.router.handle(request);
+  }
+
+  async saveState(): Promise<void[][]> {
+    return Promise.all([
+      this.saveDrops(),
+      this.saveAllDiscordToDrop(),
+      this.saveAllTwitterToDrop()
+    ]);
+  }
+
+  async saveDrops(): Promise<void[]> {
+    const promises = [];
+    for (
+      let i = 0, offset = 0;
+      offset < this.drops.length;
+      i++, offset += 100
+    ) {
+      const drops = this.drops.slice(offset, offset + 100);
+      promises.push(this.state.storage.put(`drops${i}`, drops));
+    }
+    return Promise.all(promises);
+  }
+
+  async saveAllDiscordToDrop(): Promise<void[]> {
+    const promises = [];
+    const discordToDropEntries = Object.entries(this.discordToDrop);
+    for (const [key, value] of discordToDropEntries) {
+      promises.push(this.state.storage.put(`discordToDrop${key}`, value));
+    }
+    return Promise.all(promises);
+  }
+
+  async saveAllTwitterToDrop(): Promise<void[]> {
+    const promises = [];
+    const twitterToDropEntries = Object.entries(this.twitterToDrop);
+    for (const [key, value] of twitterToDropEntries) {
+      promises.push(this.state.storage.put(`twitterToDrop${key}`, value));
+    }
+    return Promise.all(promises);
   }
 }
