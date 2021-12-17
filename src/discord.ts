@@ -13,7 +13,6 @@ interface DiscordUser {
   createdAt: string;
   refreshToken: string;
   isMember: boolean;
-  isHumanguildMember: boolean;
   verified: boolean;
   acceptedRules: boolean;
   solvedCaptcha: boolean;
@@ -24,7 +23,6 @@ interface DiscordUser {
 export function isDiscordUserOk(user: DiscordUser): boolean {
   return (
     user.isMember &&
-    user.isHumanguildMember &&
     user.verified &&
     user.acceptedRules &&
     user.solvedCaptcha &&
@@ -160,7 +158,6 @@ async function fetchUserInfo(
       createdAt: createdAt.toISOString(),
       refreshToken,
       isMember: false,
-      isHumanguildMember: false,
       verified,
       acceptedRules: false,
       solvedCaptcha: false,
@@ -172,7 +169,6 @@ async function fetchUserInfo(
   const guilds: { id: string }[] = await guildRes.json();
   const guildIds = guilds.map(guild => guild.id);
   const isMember = guildIds.includes('168893527357521920');
-  const isHumanguildMember = guildIds.includes('808933630683775008');
   const newMemberRole = '880382185213923339';
   const memberRole = '891312134733045850';
   // const discordsComVoteRole = '888329979958558781';
@@ -188,7 +184,6 @@ async function fetchUserInfo(
     createdAt: createdAt.toISOString(),
     refreshToken,
     isMember,
-    isHumanguildMember,
     verified,
     acceptedRules,
     solvedCaptcha,
