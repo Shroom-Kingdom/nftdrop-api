@@ -175,11 +175,11 @@ async function fetchUserInfo(
   const isHumanguildMember = guildIds.includes('808933630683775008');
   const newMemberRole = '880382185213923339';
   const memberRole = '891312134733045850';
-  const discordsComVoteRole = '888329979958558781';
+  // const discordsComVoteRole = '888329979958558781';
   const topGgVoteRole = '888885237222899753';
   const acceptedRules = !roles.includes(newMemberRole);
   const solvedCaptcha = roles.includes(memberRole);
-  const discordsComVote = roles.includes(discordsComVoteRole);
+  const discordsComVote = true; // roles.includes(discordsComVoteRole);
   const topGgVote = roles.includes(topGgVoteRole);
   return {
     id,
