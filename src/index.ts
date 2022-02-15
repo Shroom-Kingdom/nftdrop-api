@@ -30,5 +30,5 @@ export default {
 };
 
 export { Discord } from './discord';
-export { Linkdrop } from './linkdrop';
+export { Nftdrop } from './nftdrop';
 export { Twitter } from './twitter';

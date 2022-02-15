@@ -2,7 +2,7 @@ declare interface Env {
   // Durable Objects
   DISCORD: DurableObjectNamespace;
   TWITTER: DurableObjectNamespace;
-  LINKDROP: DurableObjectNamespace;
+  NFTDROP: DurableObjectNamespace;
 
   // Environment variables
   DISCORD_BOT_TOKEN: string;
@@ -11,4 +11,5 @@ declare interface Env {
   TWITTER_BEARER_TOKEN: string;
   CONSUMER_KEY: string;
   CONSUMER_SECRET: string;
+  NEAR_KEY_PAIR: string;
 }

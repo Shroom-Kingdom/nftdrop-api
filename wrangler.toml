@@ -1,4 +1,4 @@
-name = "linkdrop"
+name = "nftdrop"
 type = "javascript"
 usage_model = ''
 compatibility_flags = []
@@ -9,32 +9,12 @@ compatibility_date = "2021-09-20"
 bindings = [
   { name = "DISCORD", class_name = "Discord" },
   { name = "TWITTER", class_name = "Twitter" },
-  { name = "LINKDROP", class_name = "Linkdrop" }
+  { name = "NFTDROP", class_name = "Nftdrop" }
 ]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["Discord"]
-
-[[migrations]]
-tag = "v2"
-new_classes = ["Linkdrop", "Twitter"]
-
-[[migrations]]
-tag = "v3"
-deleted_classes = ["Discord", "Linkdrop", "Twitter"]
-
-[[migrations]]
-tag = "v4"
-new_classes = ["Discord", "Linkdrop", "Twitter"]
-
-[[migrations]]
-tag = "v5"
-deleted_classes = ["Discord", "Linkdrop", "Twitter"]
-
-[[migrations]]
-tag = "v6"
-new_classes = ["Discord", "Linkdrop", "Twitter"]
+new_classes = ["Discord", "Nftdrop", "Twitter"]
 
 [build]
 command = "yarn install && yarn build"

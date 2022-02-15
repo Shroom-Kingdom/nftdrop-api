@@ -2,8 +2,8 @@ import { Router, Request } from 'itty-router';
 
 import { logErrorResponse } from './helpers';
 
-const router = Router({ base: '/linkdrop' });
-export { router as linkdropRouter };
+const router = Router({ base: '/nftdrop' });
+export { router as nftdropRouter };
 
 interface Drop {
   link: string;
@@ -17,11 +17,11 @@ interface Owner {
 
 router
   .get('/info', async (req, env: Env) => {
-    const addr = env.LINKDROP.idFromName('1');
-    const obj = env.LINKDROP.get(addr);
+    const addr = env.NFTDROP.idFromName('1');
+    const obj = env.NFTDROP.get(addr);
     const res = await obj.fetch(req.url);
     if (!res.ok) {
-      await logErrorResponse('GET Linkdrop info', res);
+      await logErrorResponse('GET Nftdrop info', res);
     }
     return res;
   })
@@ -47,8 +47,8 @@ router
       twitter = twitterRes.ok;
     }
 
-    const addr = env.LINKDROP.idFromName('1');
-    const obj = env.LINKDROP.get(addr);
+    const addr = env.NFTDROP.idFromName('1');
+    const obj = env.NFTDROP.get(addr);
     const res = await obj.fetch(req.url, {
       method: 'POST',
       body: JSON.stringify({
@@ -79,18 +79,18 @@ router
     const discordObj = env.DISCORD.get(discordAddr);
     const discordRes = await discordObj.fetch(req.url);
     if (!discordRes.ok) {
-      await logErrorResponse('POST Linkdrop check discord', discordRes);
+      await logErrorResponse('POST Nftdrop check discord', discordRes);
     }
 
     const twitterAddr = env.TWITTER.idFromName(twitterOwnerId);
     const twitterObj = env.TWITTER.get(twitterAddr);
     const twitterRes = await twitterObj.fetch(req.url);
     if (!twitterRes.ok) {
-      await logErrorResponse('POST Linkdrop check twitter', twitterRes);
+      await logErrorResponse('POST Nftdrop check twitter', twitterRes);
     }
 
-    const addr = env.LINKDROP.idFromName('1');
-    const obj = env.LINKDROP.get(addr);
+    const addr = env.NFTDROP.idFromName('1');
+    const obj = env.NFTDROP.get(addr);
     const res = await obj.fetch(req.url, {
       method: 'POST',
       body: JSON.stringify({
@@ -99,7 +99,7 @@ router
       })
     });
     if (!res.ok) {
-      await logErrorResponse('POST Linkdrop add', res);
+      await logErrorResponse('POST Nftdrop add', res);
     }
     return res;
   })
@@ -111,19 +111,19 @@ router
     if (drops.some(({ link }) => link == null)) {
       return new Response('', { status: 400 });
     }
-    const addr = env.LINKDROP.idFromName('1');
-    const obj = env.LINKDROP.get(addr);
+    const addr = env.NFTDROP.idFromName('1');
+    const obj = env.NFTDROP.get(addr);
     const res = await obj.fetch(req.url, {
       method: 'POST',
       body: JSON.stringify(drops)
     });
     if (!res.ok) {
-      await logErrorResponse('POST Linkdrop add', res);
+      await logErrorResponse('POST Nftdrop add', res);
     }
     return res;
   });
 
-export class Linkdrop {
+export class Nftdrop {
   private state: DurableObjectState;
   private initializePromise: Promise<void> | undefined;
   private drops: Drop[] = [];
@@ -133,7 +133,7 @@ export class Linkdrop {
 
   constructor(state: DurableObjectState) {
     this.state = state;
-    this.router = Router({ base: '/linkdrop' })
+    this.router = Router({ base: '/nftdrop' })
       .get('/info', async () => {
         let claimed = 0;
         let unclaimed = 0;

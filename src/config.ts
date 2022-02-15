@@ -1,5 +1,5 @@
 // Change these variables on airdrop campaign launch
-export const DATE_THRESHOLD = new Date('2021-12-01');
+export const DATE_THRESHOLD = new Date('2022-02-15');
 export const RETWEET_ID = '1468678836632133638';
 
 // do not change these

@@ -2,6 +2,7 @@ import { Router, Request } from 'itty-router';
 
 import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
+import { nearLogin } from './near';
 
 const router = Router({ base: '/discord' });
 export { router as discordRouter };
@@ -16,8 +17,6 @@ interface DiscordUser {
   verified: boolean;
   acceptedRules: boolean;
   solvedCaptcha: boolean;
-  discordsComVote: boolean;
-  topGgVote: boolean;
 }
 
 export function isDiscordUserOk(user: DiscordUser): boolean {
@@ -26,14 +25,13 @@ export function isDiscordUserOk(user: DiscordUser): boolean {
     user.verified &&
     user.acceptedRules &&
     user.solvedCaptcha &&
-    user.discordsComVote &&
-    user.topGgVote &&
     new Date(user.createdAt).valueOf() < DATE_THRESHOLD.valueOf()
   );
 }
 
 router
   .get('/:id', async (req, env: Env) => {
+    await nearLogin(env);
     const id = req.params?.id;
     if (id == null) {
       return new Response('', { status: 400 });
@@ -160,9 +158,7 @@ async function fetchUserInfo(
       isMember: false,
       verified,
       acceptedRules: false,
-      solvedCaptcha: false,
-      discordsComVote: false,
-      topGgVote: false
+      solvedCaptcha: false
     };
   }
   const { roles }: { roles: string[] } = await shrmGuildRes.json();
@@ -171,12 +167,8 @@ async function fetchUserInfo(
   const isMember = guildIds.includes('168893527357521920');
   const newMemberRole = '880382185213923339';
   const memberRole = '891312134733045850';
-  // const discordsComVoteRole = '888329979958558781';
-  const topGgVoteRole = '888885237222899753';
   const acceptedRules = !roles.includes(newMemberRole);
   const solvedCaptcha = roles.includes(memberRole);
-  const discordsComVote = true; // roles.includes(discordsComVoteRole);
-  const topGgVote = roles.includes(topGgVoteRole);
   return {
     id,
     username,
@@ -186,9 +178,7 @@ async function fetchUserInfo(
     isMember,
     verified,
     acceptedRules,
-    solvedCaptcha,
-    discordsComVote,
-    topGgVote
+    solvedCaptcha
   };
 }
 
@@ -209,7 +199,7 @@ export class Discord {
     this.state = state;
     this.user = null;
     this.router = Router()
-      .get('/linkdrop/*', async () => {
+      .get('/nftdrop/*', async () => {
         if (!this.user || !isDiscordUserOk(this.user)) {
           return new Response('', { status: 403 });
         }

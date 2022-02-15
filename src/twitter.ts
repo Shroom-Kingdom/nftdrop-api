@@ -325,7 +325,7 @@ export class Twitter {
     this.state = state;
     this.user = null;
     this.router = Router()
-      .get('/linkdrop/*', async () => {
+      .get('/nftdrop/*', async () => {
         if (!this.user || !isTwitterUserOk(this.user)) {
           return new Response('', { status: 403 });
         }

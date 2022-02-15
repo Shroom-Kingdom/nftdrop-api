@@ -16,6 +16,7 @@
     "fp-ts": "^2",
     "io-ts": "^2",
     "itty-router": "2",
+    "near-api-js": "file:../near-api-js/",
     "pako": "^2"
   },
   "devDependencies": {
