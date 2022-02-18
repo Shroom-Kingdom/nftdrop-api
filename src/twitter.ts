@@ -318,7 +318,7 @@ async function checkIsFollowing(
 export class Twitter {
   private state: DurableObjectState;
   private initializePromise: Promise<void> | undefined;
-  private user: TwitterUser | null;
+  private user?: TwitterUser | null;
   private router: Router<unknown>;
 
   constructor(state: DurableObjectState) {
