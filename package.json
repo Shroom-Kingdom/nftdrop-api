@@ -1,29 +1,27 @@
 {
   "private": true,
-  "name": "api",
+  "name": "nftdrop",
   "version": "1.0.0",
-  "description": "Shroom Kingdom Cloudflare Workers API",
+  "description": "Shroom Kingdom Nft Airdrop API",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --outfile=dist/index.mjs --format=esm --minify",
-    "format": "prettier --write  '*.{json,js}' 'src/**/*.{js,ts}' 'test/**/*.{js,ts}'",
-    "lint": "eslint --max-warnings=0 src && prettier --check '*.{json,js}' 'src/**/*.{js,ts}' 'test/**/*.{js,ts}'",
+    "build": "node build",
+    "format": "prettier --write  '*.{json,js}' 'src/**/*.{js,ts}'",
+    "lint": "eslint --max-warnings=0 src && prettier --check '*.{json,js}' 'src/**/*.{js,ts}'",
     "test": "jest --config jestconfig.json --verbose"
   },
-  "author": "author",
+  "author": "Mario Reder <mario.reder@pm.me>",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "crypto-js": "^4.1.1",
-    "fp-ts": "^2",
-    "io-ts": "^2",
     "itty-router": "2",
     "near-api-js": "file:../near-api-js/",
-    "pako": "^2"
+    "ts-pattern": "^3.3.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^2",
+    "@esbuild-plugins/node-globals-polyfill": "^0.1.1",
     "@types/crypto-js": "^4.0.2",
     "@types/jest": "^27",
-    "@types/pako": "^1",
     "@types/service-worker-mock": "^2",
     "@typescript-eslint/eslint-plugin": "^4",
     "@typescript-eslint/parser": "^4",

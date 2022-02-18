@@ -2,7 +2,6 @@ import { Router, Request } from 'itty-router';
 
 import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
-import { nearLogin } from './near';
 
 const router = Router({ base: '/discord' });
 export { router as discordRouter };
@@ -31,7 +30,6 @@ export function isDiscordUserOk(user: DiscordUser): boolean {
 
 router
   .get('/:id', async (req, env: Env) => {
-    await nearLogin(env);
     const id = req.params?.id;
     if (id == null) {
       return new Response('', { status: 400 });
