@@ -30,5 +30,6 @@ export default {
 };
 
 export { Discord } from './discord';
+export { Near } from './near';
 export { Nftdrop } from './nftdrop';
 export { Twitter } from './twitter';

@@ -3,6 +3,7 @@ declare interface Env {
   DISCORD: DurableObjectNamespace;
   TWITTER: DurableObjectNamespace;
   NFTDROP: DurableObjectNamespace;
+  NEAR: DurableObjectNamespace;
 
   // Environment variables
   DISCORD_BOT_TOKEN: string;

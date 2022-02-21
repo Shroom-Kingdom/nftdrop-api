@@ -190,7 +190,7 @@ function convertIDtoDate(id: string): Date {
 export class Discord {
   private state: DurableObjectState;
   private initializePromise: Promise<void> | undefined;
-  private user: DiscordUser | null;
+  private user?: DiscordUser | null;
   private router: Router<unknown>;
 
   constructor(state: DurableObjectState) {

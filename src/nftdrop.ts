@@ -74,6 +74,14 @@ router
     const { walletId, discordOwnerId, twitterOwnerId }: Owner =
       await req.json();
 
+    let near = false;
+    if (walletId != null) {
+      const nearAddr = env.NEAR.idFromName(walletId);
+      const nearObj = env.NEAR.get(nearAddr);
+      const nearRes = await nearObj.fetch(req.url);
+      near = nearRes.ok;
+    }
+
     let discord = false;
     if (discordOwnerId != null) {
       const discordAddr = env.DISCORD.idFromName(discordOwnerId);
@@ -107,6 +115,7 @@ router
 
     return new Response(
       JSON.stringify({
+        near,
         discord,
         twitter,
         tokenId
