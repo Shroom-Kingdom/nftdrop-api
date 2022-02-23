@@ -1,6 +1,7 @@
 import { Router } from 'itty-router';
 import { Account, connect, KeyPair, keyStores } from 'near-api-js';
 
+import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
 
 export interface NearUser {
@@ -10,10 +11,16 @@ export interface NearUser {
   staked: boolean;
   creditToNextLevel: number;
   requiredToNextLevel: number;
+  createdAt: number;
 }
 
 export function isNearUserOk(user: NearUser): boolean {
-  return !!user.walletId && user.level >= 2 && user.staked;
+  return (
+    !!user.walletId &&
+    user.level >= 3 &&
+    user.staked &&
+    new Date(user.createdAt).valueOf() < DATE_THRESHOLD.valueOf()
+  );
 }
 
 export async function nearLogin(walletKey: string): Promise<Account> {
@@ -55,13 +62,20 @@ router.get('/:walletId', async (req, env: Env) => {
   }
   const staked = stakeRes;
 
+  const createdRes = await getCreatedAt(walletId);
+  if (createdRes instanceof Response) {
+    return Response;
+  }
+  const createdAt = createdRes;
+
   const user: NearUser = {
     walletId,
     points,
     level,
     staked,
     creditToNextLevel,
-    requiredToNextLevel
+    requiredToNextLevel,
+    createdAt
   };
 
   const addr = env.NEAR.idFromName(user.walletId);
@@ -75,6 +89,7 @@ router.get('/:walletId', async (req, env: Env) => {
     return new Response('', { status: 400 });
   }
 
+  console.log('createdAt', createdAt);
   return new Response(JSON.stringify(user));
 });
 
@@ -112,6 +127,19 @@ async function getStakeBadge(walletId: string): Promise<boolean | Response> {
   const stakeRes: { result: number }[] = await res.json();
   const { result } = stakeRes.pop() ?? { result: 0 };
   return result === 1;
+}
+
+async function getCreatedAt(walletId: string): Promise<number | Response> {
+  const res = await fetch(
+    `https://api.stats.gallery/testnet/account-creation?account_id=${walletId}`
+  );
+  if (!res.ok) {
+    logErrorResponse('GET Near created at', res);
+    return new Response('', { status: 400 });
+  }
+  const createdRes: { result: number }[] = await res.json();
+  const { result } = createdRes.pop() ?? { result: 0 };
+  return result / 1_000_000;
 }
 
 function pointsToLevel(points: number): {
