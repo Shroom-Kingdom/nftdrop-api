@@ -10,7 +10,9 @@ import {
   TWITTER_ACCOUNT_ID_NEAR_PROTOCOL,
   TWITTER_ACCOUNT_ID_NNC
 } from './config';
+import { logErrorResponse } from './helpers';
 import { obtainOauthRequestToken, obtainOauthAccessToken } from './oauth';
+import { Session, SessionHeader, TwitterSession } from './session';
 import { createSignature } from './signature';
 
 const router = Router({ base: '/twitter' });
@@ -57,9 +59,7 @@ router
     const obj = env.TWITTER.get(addr);
     const res = await obj.fetch(req.url);
     if (!res.ok) {
-      console.error(
-        `Twitter GET user error: [${res.status}] ${await res.text()}`
-      );
+      logErrorResponse('Twitter GET user error', res);
       return new Response('', { status: res.status });
     }
     return new Response(await res.text());
@@ -99,22 +99,34 @@ router
       });
     oauthToken = oauth_token;
 
-    const user = await verifyUser(req, oauthToken, oauthTokenSecret, env);
+    const twitterSession: TwitterSession = {
+      oauthToken,
+      oauthTokenSecret
+    };
+    const user = await verifyUser(req, twitterSession, env);
     if (user instanceof Response) {
       return user;
     }
 
-    return new Response(
-      JSON.stringify({ ...user, oauthToken, oauthTokenSecret })
-    );
+    return new Response(JSON.stringify(user), {
+      headers: {
+        [SessionHeader.Twitter]: encodeURIComponent(
+          JSON.stringify(twitterSession)
+        ),
+        'Access-Control-Expose-Headers': SessionHeader.Twitter
+      }
+    });
   })
-  .post('/verify', async (req, env: Env) => {
+  .post('/verify', async (req, env: Env, session: Session) => {
     if (!req.json) {
       return new Response('', { status: 400 });
     }
-    const { oauthToken, oauthTokenSecret } = await req.json();
+    if (!session.twitter) {
+      console.error(`POST Twitter verify session not set`);
+      return new Response('', { status: 400 });
+    }
 
-    const user = await verifyUser(req, oauthToken, oauthTokenSecret, env);
+    const user = await verifyUser(req, session.twitter, env);
     if (user instanceof Response) {
       return user;
     }
@@ -124,8 +136,7 @@ router
 
 async function verifyUser(
   req: Request,
-  oauthToken: string,
-  oauthTokenSecret: string,
+  twitterSession: TwitterSession,
   env: Env
 ): Promise<Response | TwitterUser> {
   let apiUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
@@ -136,8 +147,8 @@ async function verifyUser(
     apiUrl,
     consumerKey: env.CONSUMER_KEY,
     consumerSecret: env.CONSUMER_SECRET,
-    oauthToken,
-    oauthTokenSecret,
+    oauthToken: twitterSession.oauthToken,
+    oauthTokenSecret: twitterSession.oauthTokenSecret,
     method: 'GET',
     qs
   });
@@ -163,12 +174,7 @@ async function verifyUser(
     [TWITTER_ACCOUNT_ID_NNC]: false,
     [TWITTER_ACCOUNT_ID_FSC]: false
   };
-  const isFollowingRes = await checkIsFollowing(
-    oauthToken,
-    oauthTokenSecret,
-    follows,
-    env
-  );
+  const isFollowingRes = await checkIsFollowing(twitterSession, follows, env);
   if (isFollowingRes instanceof Response) {
     return isFollowingRes;
   }
@@ -190,8 +196,8 @@ async function verifyUser(
     apiUrl,
     consumerKey: env.CONSUMER_KEY,
     consumerSecret: env.CONSUMER_SECRET,
-    oauthToken,
-    oauthTokenSecret,
+    oauthToken: twitterSession.oauthToken,
+    oauthTokenSecret: twitterSession.oauthTokenSecret,
     method: 'GET',
     qs
   });
@@ -228,8 +234,8 @@ async function verifyUser(
     apiUrl,
     consumerKey: env.CONSUMER_KEY,
     consumerSecret: env.CONSUMER_SECRET,
-    oauthToken,
-    oauthTokenSecret,
+    oauthToken: twitterSession.oauthToken,
+    oauthTokenSecret: twitterSession.oauthTokenSecret,
     method: 'GET',
     qs
   });
@@ -281,8 +287,7 @@ async function verifyUser(
 }
 
 async function checkIsFollowing(
-  oauthToken: string,
-  oauthTokenSecret: string,
+  twitterSession: TwitterSession,
   accounts: Record<string, boolean>,
   env: Env
 ): Promise<undefined | Response> {
@@ -295,8 +300,8 @@ async function checkIsFollowing(
     apiUrl,
     consumerKey: env.CONSUMER_KEY,
     consumerSecret: env.CONSUMER_SECRET,
-    oauthToken,
-    oauthTokenSecret,
+    oauthToken: twitterSession.oauthToken,
+    oauthTokenSecret: twitterSession.oauthTokenSecret,
     method: 'GET',
     qs
   });

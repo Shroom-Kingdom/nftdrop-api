@@ -2,6 +2,7 @@ import { Router, Request } from 'itty-router';
 
 import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
+import { Session, SessionHeader } from './session';
 
 const router = Router({ base: '/discord' });
 export { router as discordRouter };
@@ -11,7 +12,6 @@ interface DiscordUser {
   username: string;
   discriminator: string;
   createdAt: string;
-  refreshToken: string;
   isMember: boolean;
   verified: boolean;
   acceptedRules: boolean;
@@ -65,19 +65,19 @@ router
 
     return saveDiscordUser(req, body, env);
   })
-  .post('/refresh', async (req, env: Env) => {
+  .post('/refresh', async (req, env: Env, session?: Session) => {
     if (!req.json) {
       return new Response('', { status: 400 });
     }
-    const { refresh_token } = await req.json();
-    if (refresh_token == null) {
+    if (session?.discord?.refreshToken == null) {
       return new Response('', { status: 400 });
     }
     const body = new URLSearchParams();
     body.append('client_id', env.DISCORD_CLIENT_ID);
     body.append('client_secret', env.DISCORD_CLIENT_SECRET);
     body.append('grant_type', 'refresh_token');
-    body.append('refresh_token', refresh_token);
+    body.append('refresh_token', session.discord.refreshToken);
+    console.log('body', body.toString());
 
     return saveDiscordUser(req, body, env);
   });
@@ -94,9 +94,12 @@ async function saveDiscordUser(req: Request, body: URLSearchParams, env: Env) {
     await logErrorResponse('POST Discord token', res);
     return new Response('', { status: 400 });
   }
-  const { access_token: accessToken, refresh_token: refreshToken } =
-    await res.json();
-  const user = await fetchUserInfo(accessToken, refreshToken, env);
+  const {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn
+  } = await res.json();
+  const user = await fetchUserInfo(accessToken, env);
   if (user == null) {
     return new Response('', { status: 400 });
   }
@@ -112,12 +115,24 @@ async function saveDiscordUser(req: Request, body: URLSearchParams, env: Env) {
     return new Response('', { status: 400 });
   }
 
-  return new Response(JSON.stringify(user));
+  const discordSession = {
+    accessToken,
+    refreshToken,
+    expiresAt: new Date(Date.now() + expiresIn * 1_000)
+  };
+
+  return new Response(JSON.stringify(user), {
+    headers: {
+      [SessionHeader.Discord]: encodeURIComponent(
+        JSON.stringify(discordSession)
+      ),
+      'Access-Control-Expose-Headers': SessionHeader.Discord
+    }
+  });
 }
 
 async function fetchUserInfo(
   accessToken: string,
-  refreshToken: string,
   env: Env
 ): Promise<DiscordUser | undefined> {
   const res = await fetch('https://discord.com/api/users/@me', {
@@ -152,7 +167,6 @@ async function fetchUserInfo(
       username,
       discriminator,
       createdAt: createdAt.toISOString(),
-      refreshToken,
       isMember: false,
       verified,
       acceptedRules: false,
@@ -172,7 +186,6 @@ async function fetchUserInfo(
     username,
     discriminator,
     createdAt: createdAt.toISOString(),
-    refreshToken,
     isMember,
     verified,
     acceptedRules,

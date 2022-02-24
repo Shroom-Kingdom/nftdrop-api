@@ -89,7 +89,6 @@ router.get('/:walletId', async (req, env: Env) => {
     return new Response('', { status: 400 });
   }
 
-  console.log('createdAt', createdAt);
   return new Response(JSON.stringify(user));
 });
 

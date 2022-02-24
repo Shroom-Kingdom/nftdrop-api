@@ -1,24 +1,22 @@
 import { router } from './main';
+import { getSession, SessionHeader } from './session';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === 'OPTIONS') {
+      const headers = new Headers();
+      setupCORS(request, headers);
+      return new Response('', { status: 204, headers });
+    }
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const origin = (request as any).headers.get('Origin');
-      const res = await router.handle(request, env);
-      if (res.headers.get('Access-Control-Allow-Origin') != null) {
-        return res;
-      }
+      const session = getSession(request);
+      const res = await router.handle(request, env, session);
       const response = new Response(res.body, res);
-      response.headers.set('Access-Control-Allow-Origin', origin);
+      setupCORS(request, response.headers);
       return response;
     } catch (e) {
       const headers = new Headers();
-      headers.set(
-        'Access-Control-Allow-Origin',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (request as any).headers.get('Origin')
-      );
+      setupCORS(request, headers);
       if (e instanceof Error) {
         console.log('Internal Error', e.message);
         return new Response(e.message, { status: 500, headers });
@@ -28,6 +26,17 @@ export default {
     }
   }
 };
+
+function setupCORS(request: Request, headers: Headers) {
+  const origin = request.headers.get('Origin');
+  if (origin != null) {
+    headers.set('Access-Control-Allow-Origin', origin);
+  }
+  headers.set(
+    'Access-Control-Allow-Headers',
+    `${SessionHeader.Discord},${SessionHeader.Twitter}`
+  );
+}
 
 export { Discord } from './discord';
 export { Near } from './near';
