@@ -4,9 +4,11 @@ import {
   REQUIRED_RT_HASHTAGS,
   RETWEET_ID,
   TWITTER_ACCOUNT_ID,
+  TWITTER_ACCOUNT_ID_FSC,
   TWITTER_ACCOUNT_ID_HUMANGUILD,
   TWITTER_ACCOUNT_ID_NEAR_GAMES,
-  TWITTER_ACCOUNT_ID_NEAR_PROTOCOL
+  TWITTER_ACCOUNT_ID_NEAR_PROTOCOL,
+  TWITTER_ACCOUNT_ID_NNC
 } from './config';
 import { obtainOauthRequestToken, obtainOauthAccessToken } from './oauth';
 import { createSignature } from './signature';
@@ -22,6 +24,8 @@ interface TwitterUser {
   isFollowingHumanguild: boolean;
   isFollowingNEARGames: boolean;
   isFollowingNEARProtocol: boolean;
+  isFollowingNNC: boolean;
+  isFollowingFSC: boolean;
   retweeted: boolean;
   liked: boolean;
 }
@@ -155,7 +159,9 @@ async function verifyUser(
     [TWITTER_ACCOUNT_ID]: false,
     [TWITTER_ACCOUNT_ID_HUMANGUILD]: false,
     [TWITTER_ACCOUNT_ID_NEAR_GAMES]: false,
-    [TWITTER_ACCOUNT_ID_NEAR_PROTOCOL]: false
+    [TWITTER_ACCOUNT_ID_NEAR_PROTOCOL]: false,
+    [TWITTER_ACCOUNT_ID_NNC]: false,
+    [TWITTER_ACCOUNT_ID_FSC]: false
   };
   const isFollowingRes = await checkIsFollowing(
     oauthToken,
@@ -170,6 +176,8 @@ async function verifyUser(
   const isFollowingHumanguild = follows[TWITTER_ACCOUNT_ID_HUMANGUILD];
   const isFollowingNEARGames = follows[TWITTER_ACCOUNT_ID_NEAR_GAMES];
   const isFollowingNEARProtocol = follows[TWITTER_ACCOUNT_ID_NEAR_PROTOCOL];
+  const isFollowingNNC = follows[TWITTER_ACCOUNT_ID_NNC];
+  const isFollowingFSC = follows[TWITTER_ACCOUNT_ID_FSC];
 
   apiUrl = `https://api.twitter.com/1.1/statuses/user_timeline.json`;
   qs = {
@@ -248,6 +256,8 @@ async function verifyUser(
     isFollowingHumanguild,
     isFollowingNEARGames,
     isFollowingNEARProtocol,
+    isFollowingNNC,
+    isFollowingFSC,
     retweeted,
     liked
   };
