@@ -1,9 +1,12 @@
 import { Router, Request } from 'itty-router';
-import { Account, Contract } from 'near-api-js';
+import { Account } from 'near-api-js';
 import { match } from 'ts-pattern';
 
+import { DiscordUser } from './discord';
 import { logErrorResponse } from './helpers';
-import { nearLogin } from './near';
+import { initContract, NftContract, NftMetadata } from './near';
+import { Session } from './session';
+import { TwitterUser } from './twitter';
 
 const router = Router({ base: '/nftdrop' });
 export { router as nftdropRouter };
@@ -14,7 +17,7 @@ interface Owner {
   twitterOwnerId: string;
 }
 
-enum Nft {
+enum NftType {
   Smb1Small = 'smb1-small',
   Smb1Big = 'smb1-big',
   Smb3Small = 'smb3-small',
@@ -23,33 +26,18 @@ enum Nft {
   SmwBig = 'smw-big'
 }
 
-interface NftContract extends Contract {
-  nft_tokens_for_owner: (params: {
-    account_id: string;
-  }) => Promise<NftMetadata[]>;
-  nft_transfer: (params: {
-    receiver_id: string;
-    token_id: string;
-    approval_id: number;
-  }) => Promise<unknown>;
-}
-
-interface NftMetadata {
-  token_id: string;
-}
-
 interface AvailableNfts {
-  [Nft.Smb1Small]: NftMetadata[];
-  [Nft.Smb1Big]: NftMetadata[];
-  [Nft.Smb3Small]: NftMetadata[];
-  [Nft.Smb3Big]: NftMetadata[];
-  [Nft.SmwSmall]: NftMetadata[];
-  [Nft.SmwBig]: NftMetadata[];
+  [NftType.Smb1Small]: NftMetadata[];
+  [NftType.Smb1Big]: NftMetadata[];
+  [NftType.Smb3Small]: NftMetadata[];
+  [NftType.Smb3Big]: NftMetadata[];
+  [NftType.SmwSmall]: NftMetadata[];
+  [NftType.SmwBig]: NftMetadata[];
 }
 
 interface DistributedNft {
   token_id: string;
-  nft: Nft;
+  nft: NftType;
   owner: Owner;
 }
 
@@ -111,40 +99,69 @@ router
         'Wallet-Key': env.NEAR_KEY_PAIR
       }
     });
-    const tokenId = res.ok ? await res.text() : null;
+    const { tokenId, approvalId, imgSrc } = res.ok
+      ? await res.json()
+      : { tokenId: null, approvalId: null, imgSrc: null };
 
     return new Response(
       JSON.stringify({
         near,
         discord,
         twitter,
-        tokenId
+        tokenId,
+        approvalId,
+        imgSrc
       })
     );
   })
-  .post('/claim', async (req, env: Env) => {
-    // TODO session
+  .post('/claim', async (req, env: Env, session: Session) => {
     if (!req.json) {
       return new Response('', { status: 400 });
     }
-    const { walletId, discordOwnerId, twitterOwnerId }: Owner =
+    const { walletId, nft }: { walletId: string; nft: NftType } =
       await req.json();
-    if (discordOwnerId == null || twitterOwnerId == null) {
+    if (!session.discord || !session.twitter) {
       return new Response('', { status: 400 });
     }
 
-    const discordAddr = env.DISCORD.idFromName(discordOwnerId);
+    const discordUser = await env.DISCORD_SESSIONS.get(
+      session.discord.accessToken
+    );
+    if (!discordUser) {
+      return new Response('', { status: 400 });
+    }
+    const discord: DiscordUser = JSON.parse(discordUser);
+
+    const twitterUser = await env.TWITTER_SESSIONS.get(
+      session.twitter.oauthTokenSecret
+    );
+    if (!twitterUser) {
+      return new Response('', { status: 400 });
+    }
+    const twitter: TwitterUser = JSON.parse(twitterUser);
+
+    const nearAddr = env.NEAR.idFromName(walletId);
+    const nearObj = env.NEAR.get(nearAddr);
+    const nearRes = await nearObj.fetch(req.url);
+    if (!nearRes.ok) {
+      await logErrorResponse('POST Nftdrop check near', nearRes);
+      return new Response('', { status: 403 });
+    }
+
+    const discordAddr = env.DISCORD.idFromName(discord.id);
     const discordObj = env.DISCORD.get(discordAddr);
     const discordRes = await discordObj.fetch(req.url);
     if (!discordRes.ok) {
       await logErrorResponse('POST Nftdrop check discord', discordRes);
+      return new Response('', { status: 403 });
     }
 
-    const twitterAddr = env.TWITTER.idFromName(twitterOwnerId);
+    const twitterAddr = env.TWITTER.idFromName(twitter.screenName);
     const twitterObj = env.TWITTER.get(twitterAddr);
     const twitterRes = await twitterObj.fetch(req.url);
     if (!twitterRes.ok) {
       await logErrorResponse('POST Nftdrop check twitter', twitterRes);
+      return new Response('', { status: 403 });
     }
 
     const addr = env.NFTDROP.idFromName('1');
@@ -153,8 +170,9 @@ router
       method: 'POST',
       body: JSON.stringify({
         walletId,
-        discordOwnerId,
-        twitterOwnerId
+        discordOwnerId: discord.id,
+        twitterOwnerId: twitter.screenName,
+        nft
       }),
       headers: {
         'Wallet-Key': env.NEAR_KEY_PAIR
@@ -168,14 +186,11 @@ router
 
 export class Nftdrop {
   private state: DurableObjectState;
-  private initializePromise: Promise<void> | undefined;
-  private account: Account | undefined;
-  private contract: NftContract | undefined;
-  private availableNfts: AvailableNfts | undefined;
-  private distributedNfts: DistributedNft[] = [];
-  private walletToDrop: Record<string, DistributedNft> = {};
-  private discordToDrop: Record<string, DistributedNft> = {};
-  private twitterToDrop: Record<string, DistributedNft> = {};
+  private initializePromise?: Promise<void>;
+  private account?: Account;
+  private contract?: NftContract;
+  private baseUri?: string;
+  private availableNfts?: AvailableNfts;
   private router: Router<unknown>;
 
   constructor(state: DurableObjectState) {
@@ -187,36 +202,61 @@ export class Nftdrop {
         }
         return new Response(
           JSON.stringify({
-            [Nft.Smb1Small]: this.availableNfts[Nft.Smb1Small].length,
-            [Nft.Smb1Big]: this.availableNfts[Nft.Smb1Big].length,
-            [Nft.Smb3Small]: this.availableNfts[Nft.Smb3Small].length,
-            [Nft.Smb3Big]: this.availableNfts[Nft.Smb3Big].length,
-            [Nft.SmwSmall]: this.availableNfts[Nft.SmwSmall].length,
-            [Nft.SmwBig]: this.availableNfts[Nft.SmwBig].length
+            [NftType.Smb1Small]: this.availableNfts[NftType.Smb1Small].length,
+            [NftType.Smb1Big]: this.availableNfts[NftType.Smb1Big].length,
+            [NftType.Smb3Small]: this.availableNfts[NftType.Smb3Small].length,
+            [NftType.Smb3Big]: this.availableNfts[NftType.Smb3Big].length,
+            [NftType.SmwSmall]: this.availableNfts[NftType.SmwSmall].length,
+            [NftType.SmwBig]: this.availableNfts[NftType.SmwBig].length
           })
         );
       })
       .post('/check', async req => {
-        if (!req.json) {
+        if (!req.json || !this.contract) {
           return new Response('', { status: 400 });
         }
         const { walletId, discordOwnerId, twitterOwnerId }: Owner =
           await req.json();
+        const [walletToDrop, discordToDrop, twitterToDrop] = await Promise.all([
+          this.state.storage.get<DistributedNft>(`walletToDrop${walletId}`),
+          this.state.storage.get<DistributedNft>(
+            `discordToDrop${discordOwnerId}`
+          ),
+          this.state.storage.get<DistributedNft>(
+            `twitterToDrop${twitterOwnerId}`
+          )
+        ]);
         if (
-          this.walletToDrop[walletId] &&
-          this.discordToDrop[discordOwnerId] &&
-          this.twitterToDrop[twitterOwnerId] &&
-          this.walletToDrop[walletId].token_id ===
-            this.discordToDrop[twitterOwnerId].token_id &&
-          this.discordToDrop[discordOwnerId].token_id ===
-            this.twitterToDrop[twitterOwnerId].token_id
+          walletToDrop &&
+          discordToDrop &&
+          twitterToDrop &&
+          walletToDrop.token_id === discordToDrop.token_id &&
+          discordToDrop.token_id === twitterToDrop.token_id
         ) {
-          return new Response(this.walletToDrop[walletId].token_id);
+          const token = await this.contract.nft_token({
+            token_id: walletToDrop.token_id
+          });
+          const approvalId = token.approved_account_ids[walletId];
+
+          const imgSrc = `${this.baseUri}/${token.metadata.media}`;
+
+          return new Response(
+            JSON.stringify({
+              tokenId: walletToDrop.token_id,
+              approvalId,
+              imgSrc
+            })
+          );
         }
         return new Response('', { status: 400 });
       })
       .post('/claim', async req => {
-        if (!req.json || !this.availableNfts || !this.contract) {
+        if (
+          !req.json ||
+          !this.availableNfts ||
+          !this.contract ||
+          !this.baseUri
+        ) {
           return new Response('', { status: 400 });
         }
         const {
@@ -224,11 +264,21 @@ export class Nftdrop {
           discordOwnerId,
           twitterOwnerId,
           nft
-        }: Owner & { nft: Nft } = await req.json();
+        }: Owner & { nft: NftType } = await req.json();
+
+        const [walletToDrop, discordToDrop, twitterToDrop] = await Promise.all([
+          this.state.storage.get<DistributedNft>(`walletToDrop${walletId}`),
+          this.state.storage.get<DistributedNft>(
+            `discordToDrop${discordOwnerId}`
+          ),
+          this.state.storage.get<DistributedNft>(
+            `twitterToDrop${twitterOwnerId}`
+          )
+        ]);
         if (
-          this.walletToDrop[walletId] != null ||
-          this.discordToDrop[discordOwnerId] != null ||
-          this.twitterToDrop[twitterOwnerId] != null
+          walletToDrop != null ||
+          discordToDrop != null ||
+          twitterToDrop != null
         ) {
           return new Response('', { status: 400 });
         }
@@ -246,20 +296,20 @@ export class Nftdrop {
             twitterOwnerId
           }
         };
+
         try {
-          await this.contract.nft_transfer({
-            receiver_id: walletId,
-            token_id: availableNft.token_id,
-            approval_id: 0
+          await this.contract.nft_approve({
+            args: {
+              account_id: walletId,
+              token_id: availableNft.token_id
+            },
+            amount: '240000000000000000000'
           });
         } catch (err) {
           this.availableNfts[nft].push(availableNft);
+          return new Response('', { status: 500 });
         }
 
-        this.walletToDrop[walletId] = distributedNft;
-        this.discordToDrop[discordOwnerId] = distributedNft;
-        this.twitterToDrop[twitterOwnerId] = distributedNft;
-        await this.saveDistributedNfts();
         await this.state.storage.put(`walletToDrop${walletId}`, distributedNft);
         await this.state.storage.put(
           `discordToDrop${discordOwnerId}`,
@@ -269,161 +319,147 @@ export class Nftdrop {
           `twitterToDrop${twitterOwnerId}`,
           distributedNft
         );
-        return new Response(distributedNft.token_id);
+
+        const token = await this.contract.nft_token({
+          token_id: availableNft.token_id
+        });
+        const approvalId = token.approved_account_ids[walletId];
+
+        const imgSrc = `${this.baseUri}/${token.metadata.media}`;
+
+        return new Response(
+          JSON.stringify({ tokenId: availableNft.token_id, approvalId, imgSrc })
+        );
       });
   }
 
-  async initialize(): Promise<void> {
-    this.distributedNfts = [];
-    for (let i = 0; i < 1000; i++) {
-      const distributedNfts: DistributedNft[] | undefined =
-        await this.state.storage.get(`distributedNfts${i}`);
-      if (!distributedNfts) break;
-      this.distributedNfts = this.distributedNfts.concat(distributedNfts);
+  async initialize(req: Request): Promise<void> {
+    // FIXME
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const walletKey = await (req as any).headers.get('Wallet-Key');
+    if (walletKey) {
+      await this.initializeAccount(walletKey);
     }
-
-    this.walletToDrop = {};
-    this.discordToDrop = {};
-    this.twitterToDrop = {};
-    for (const drop of this.distributedNfts) {
-      if (!drop.owner) continue;
-      const walletToDrop: DistributedNft | undefined =
-        await this.state.storage.get(`walletToDrop${drop.owner.walletId}`);
-      if (walletToDrop) {
-        this.walletToDrop[drop.owner.walletId] = walletToDrop;
-      }
-      const discordToDrop: DistributedNft | undefined =
-        await this.state.storage.get(
-          `discordToDrop${drop.owner.discordOwnerId}`
-        );
-      if (discordToDrop) {
-        this.discordToDrop[drop.owner.discordOwnerId] = discordToDrop;
-      }
-      const twitterToDrop: DistributedNft | undefined =
-        await this.state.storage.get(
-          `twitterToDrop${drop.owner.twitterOwnerId}`
-        );
-      if (twitterToDrop) {
-        this.twitterToDrop[drop.owner.twitterOwnerId] = twitterToDrop;
-      }
-    }
-    await this.saveState();
   }
 
   async initializeAccount(walletKey: string): Promise<void> {
     if (!this.account || !this.contract || !this.availableNfts) {
-      this.account = await nearLogin(walletKey);
-      this.contract = new Contract(this.account, 'near-chan-v5.shrm.testnet', {
-        changeMethods: [],
-        viewMethods: ['nft_tokens_for_owner']
-      }) as NftContract;
+      this.contract = await initContract(walletKey);
+
+      const { base_uri } = await this.contract.nft_metadata();
+      this.baseUri = base_uri;
+
       const nfts = await this.contract.nft_tokens_for_owner({
         account_id: 'near-chan-v5.shrm.testnet'
       });
       this.availableNfts = {
-        [Nft.Smb1Small]: [],
-        [Nft.Smb1Big]: [],
-        [Nft.Smb3Small]: [],
-        [Nft.Smb3Big]: [],
-        [Nft.SmwSmall]: [],
-        [Nft.SmwBig]: []
+        [NftType.Smb1Small]: [],
+        [NftType.Smb1Big]: [],
+        [NftType.Smb3Small]: [],
+        [NftType.Smb3Big]: [],
+        [NftType.SmwSmall]: [],
+        [NftType.SmwBig]: []
       };
       for (const nft of nfts) {
-        const [token_id] = nft.token_id.split(':') as [Nft];
+        for (const accountId of Object.keys(nft.approved_account_ids)) {
+          await this.revokeNftApproval(this.contract, nft, accountId);
+        }
+
+        const [token_id] = nft.token_id.split(':') as [NftType];
         /* eslint-disable @typescript-eslint/no-non-null-assertion */
         match(token_id)
-          .with(Nft.Smb1Small, () => {
-            this.availableNfts![Nft.Smb1Small].push({ token_id: nft.token_id });
+          .with(NftType.Smb1Small, () => {
+            this.availableNfts![NftType.Smb1Small].push({
+              token_id: nft.token_id,
+              approved_account_ids: {},
+              metadata: nft.metadata
+            });
           })
-          .with(Nft.Smb1Big, () => {
-            this.availableNfts![Nft.Smb1Big].push({ token_id: nft.token_id });
+          .with(NftType.Smb1Big, () => {
+            this.availableNfts![NftType.Smb1Big].push({
+              token_id: nft.token_id,
+              approved_account_ids: {},
+              metadata: nft.metadata
+            });
           })
-          .with(Nft.Smb3Small, () => {
-            this.availableNfts![Nft.Smb3Small].push({ token_id: nft.token_id });
+          .with(NftType.Smb3Small, () => {
+            this.availableNfts![NftType.Smb3Small].push({
+              token_id: nft.token_id,
+              approved_account_ids: {},
+              metadata: nft.metadata
+            });
           })
-          .with(Nft.Smb3Big, () => {
-            this.availableNfts![Nft.Smb3Big].push({ token_id: nft.token_id });
+          .with(NftType.Smb3Big, () => {
+            this.availableNfts![NftType.Smb3Big].push({
+              token_id: nft.token_id,
+              approved_account_ids: {},
+              metadata: nft.metadata
+            });
           })
-          .with(Nft.SmwSmall, () => {
-            this.availableNfts![Nft.SmwSmall].push({ token_id: nft.token_id });
+          .with(NftType.SmwSmall, () => {
+            this.availableNfts![NftType.SmwSmall].push({
+              token_id: nft.token_id,
+              approved_account_ids: {},
+              metadata: nft.metadata
+            });
           })
-          .with(Nft.SmwBig, () => {
-            this.availableNfts![Nft.SmwBig].push({ token_id: nft.token_id });
+          .with(NftType.SmwBig, () => {
+            this.availableNfts![NftType.SmwBig].push({
+              token_id: nft.token_id,
+              approved_account_ids: {},
+              metadata: nft.metadata
+            });
           })
           .exhaustive();
-        /* eslint-enable @typescript-eslint/no-non-null-assertion */
       }
     }
   }
 
   async fetch(request: Request): Promise<Response> {
     if (!this.initializePromise) {
-      this.initializePromise = this.initialize().catch(err => {
+      this.initializePromise = this.initialize(request).catch(err => {
         this.initializePromise = undefined;
         throw err;
       });
     }
     await this.initializePromise;
 
-    if (request.json) {
-      // FIXME
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const walletKey = await (request as any).headers.get('Wallet-Key');
-      if (walletKey) {
-        await this.initializeAccount(walletKey);
-      }
-    }
     return this.router.handle(request);
   }
 
-  async saveState(): Promise<void[][]> {
-    return Promise.all([
-      this.saveDistributedNfts(),
-      this.saveAllWalletToDrop(),
-      this.saveAllDiscordToDrop(),
-      this.saveAllTwitterToDrop()
-    ]);
-  }
+  async revokeNftApproval(
+    contract: NftContract,
+    nft: NftMetadata,
+    accountId: string
+  ): Promise<void> {
+    await contract.nft_revoke({
+      args: {
+        token_id: nft.token_id,
+        account_id: accountId
+      },
+      amount: '1'
+    });
+    const walletToDrop = await this.state.storage.get<DistributedNft>(
+      `walletToDrop${accountId}`
+    );
+    if (walletToDrop) {
+      await this.state.storage.delete(`walletToDrop${accountId}`);
 
-  async saveDistributedNfts(): Promise<void[]> {
-    const promises = [];
-    for (
-      let i = 0, offset = 0;
-      offset < this.distributedNfts.length;
-      i++, offset += 100
-    ) {
-      const distributedNfts = this.distributedNfts.slice(offset, offset + 100);
-      promises.push(
-        this.state.storage.put(`distributedNfts${i}`, distributedNfts)
+      const { discordOwnerId } = walletToDrop.owner;
+      const discordToDrop = await this.state.storage.get<DistributedNft>(
+        `discordToDrop${discordOwnerId}`
       );
-    }
-    return Promise.all(promises);
-  }
+      if (discordToDrop) {
+        await this.state.storage.delete(`discordToDrop${discordOwnerId}`);
+      }
 
-  async saveAllWalletToDrop(): Promise<void[]> {
-    const promises = [];
-    const walletToDropEntries = Object.entries(this.walletToDrop);
-    for (const [key, value] of walletToDropEntries) {
-      promises.push(this.state.storage.put(`walletToDrop${key}`, value));
+      const { twitterOwnerId } = walletToDrop.owner;
+      const twitterToDrop = await this.state.storage.get<DistributedNft>(
+        `twitterToDrop${twitterOwnerId}`
+      );
+      if (twitterToDrop) {
+        await this.state.storage.delete(`twitterToDrop${twitterOwnerId}`);
+      }
     }
-    return Promise.all(promises);
-  }
-
-  async saveAllDiscordToDrop(): Promise<void[]> {
-    const promises = [];
-    const discordToDropEntries = Object.entries(this.discordToDrop);
-    for (const [key, value] of discordToDropEntries) {
-      promises.push(this.state.storage.put(`discordToDrop${key}`, value));
-    }
-    return Promise.all(promises);
-  }
-
-  async saveAllTwitterToDrop(): Promise<void[]> {
-    const promises = [];
-    const twitterToDropEntries = Object.entries(this.twitterToDrop);
-    for (const [key, value] of twitterToDropEntries) {
-      promises.push(this.state.storage.put(`twitterToDrop${key}`, value));
-    }
-    return Promise.all(promises);
   }
 }

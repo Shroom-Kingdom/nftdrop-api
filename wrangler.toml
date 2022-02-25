@@ -5,6 +5,11 @@ compatibility_flags = []
 workers_dev = true
 compatibility_date = "2021-09-20"
 
+kv_namespaces = [
+  { binding = "DISCORD_SESSIONS", id = "70735ef939e24dc49a85172cf7f934f8" },
+  { binding = "TWITTER_SESSIONS", id = "d761e56521fe49589b772a6a43024a31" }
+]
+
 [durable_objects]
 bindings = [
   { name = "DISCORD", class_name = "Discord" },

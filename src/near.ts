@@ -1,5 +1,5 @@
 import { Router } from 'itty-router';
-import { Account, connect, KeyPair, keyStores } from 'near-api-js';
+import { Account, connect, Contract, KeyPair, keyStores } from 'near-api-js';
 
 import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
@@ -14,6 +14,44 @@ export interface NearUser {
   createdAt: number;
 }
 
+export interface NftContract extends Contract {
+  nft_metadata: ContractViewCall<unknown, { base_uri: string }>;
+  nft_tokens_for_owner: ContractViewCall<
+    {
+      account_id: string;
+    },
+    NftMetadata[]
+  >;
+  nft_token: ContractViewCall<
+    {
+      token_id: string;
+    },
+    NftMetadata
+  >;
+  nft_approve: ContractChangeCall<{
+    account_id: string;
+    token_id: string;
+    msg?: string;
+  }>;
+  nft_revoke: ContractChangeCall<{ token_id: string; account_id: string }>;
+}
+
+type ContractViewCall<T, R> = (params?: T) => Promise<R>;
+
+type ContractChangeCall<T> = (params: {
+  args: T;
+  gas?: string;
+  amount?: string;
+}) => Promise<void>;
+
+export interface NftMetadata {
+  token_id: string;
+  approved_account_ids: Record<string, number>;
+  metadata: {
+    media: string;
+  };
+}
+
 export function isNearUserOk(user: NearUser): boolean {
   return (
     !!user.walletId &&
@@ -23,7 +61,7 @@ export function isNearUserOk(user: NearUser): boolean {
   );
 }
 
-export async function nearLogin(walletKey: string): Promise<Account> {
+export async function initContract(walletKey: string): Promise<NftContract> {
   const keyStore = new keyStores.InMemoryKeyStore();
   const keyPair = KeyPair.fromString(walletKey);
   keyStore.setKey('testnet', 'near-chan-v5.shrm.testnet', keyPair);
@@ -37,8 +75,12 @@ export async function nearLogin(walletKey: string): Promise<Account> {
     headers: {}
   };
   const near = await connect(config);
-  const account = new Account(near.connection, 'testnet');
-  return account;
+  const account = new Account(near.connection, 'near-chan-v5.shrm.testnet');
+  const contract = new Contract(account, 'near-chan-v5.shrm.testnet', {
+    changeMethods: ['nft_approve', 'nft_revoke'],
+    viewMethods: ['nft_metadata', 'nft_tokens_for_owner', 'nft_token']
+  }) as NftContract;
+  return contract;
 }
 
 const router = Router({ base: '/near' });

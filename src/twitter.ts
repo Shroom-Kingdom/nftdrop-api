@@ -18,7 +18,7 @@ import { createSignature } from './signature';
 const router = Router({ base: '/twitter' });
 export { router as twitterRouter };
 
-interface TwitterUser {
+export interface TwitterUser {
   name: string;
   screenName: string;
   verified: boolean;
@@ -108,6 +108,7 @@ router
       return user;
     }
 
+    await env.TWITTER_SESSIONS.put(oauthTokenSecret, JSON.stringify(user));
     return new Response(JSON.stringify(user), {
       headers: {
         [SessionHeader.Twitter]: encodeURIComponent(

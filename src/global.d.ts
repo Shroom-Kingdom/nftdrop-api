@@ -5,6 +5,9 @@ declare interface Env {
   NFTDROP: DurableObjectNamespace;
   NEAR: DurableObjectNamespace;
 
+  DISCORD_SESSIONS: KVNamespace;
+  TWITTER_SESSIONS: KVNamespace;
+
   // Environment variables
   DISCORD_BOT_TOKEN: string;
   DISCORD_CLIENT_ID: string;

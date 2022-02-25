@@ -7,7 +7,7 @@ import { Session, SessionHeader } from './session';
 const router = Router({ base: '/discord' });
 export { router as discordRouter };
 
-interface DiscordUser {
+export interface DiscordUser {
   id: string;
   username: string;
   discriminator: string;
@@ -77,7 +77,6 @@ router
     body.append('client_secret', env.DISCORD_CLIENT_SECRET);
     body.append('grant_type', 'refresh_token');
     body.append('refresh_token', session.discord.refreshToken);
-    console.log('body', body.toString());
 
     return saveDiscordUser(req, body, env);
   });
@@ -121,6 +120,7 @@ async function saveDiscordUser(req: Request, body: URLSearchParams, env: Env) {
     expiresAt: new Date(Date.now() + expiresIn * 1_000)
   };
 
+  await env.DISCORD_SESSIONS.put(accessToken, JSON.stringify(user));
   return new Response(JSON.stringify(user), {
     headers: {
       [SessionHeader.Discord]: encodeURIComponent(
