@@ -1,7 +1,6 @@
 import { Router } from 'itty-router';
 import { Account, connect, Contract, KeyPair, keyStores } from 'near-api-js';
 
-import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
 
 export interface NearUser {
@@ -52,12 +51,12 @@ export interface NftMetadata {
   };
 }
 
-export function isNearUserOk(user: NearUser): boolean {
+export function isNearUserOk(user: NearUser, dateThreshold: string): boolean {
   return (
     !!user.walletId &&
     user.level >= 3 &&
     user.staked &&
-    new Date(user.createdAt).valueOf() < DATE_THRESHOLD.valueOf()
+    new Date(user.createdAt).valueOf() < new Date(dateThreshold).valueOf()
   );
 }
 
@@ -208,8 +207,12 @@ export class Near {
     this.state = state;
     this.user = null;
     this.router = Router()
-      .get('/nftdrop/*', async () => {
-        if (!this.user || !isNearUserOk(this.user)) {
+      .post('/nftdrop/*', async req => {
+        if (!req.json) {
+          return new Response('', { status: 400 });
+        }
+        const { dateThreshold } = await req.json();
+        if (!this.user || !isNearUserOk(this.user, dateThreshold)) {
           return new Response('', { status: 403 });
         }
         return new Response('', { status: 200 });

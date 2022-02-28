@@ -2,7 +2,6 @@ import { Router, Request } from 'itty-router';
 
 import {
   REQUIRED_RT_HASHTAGS,
-  RETWEET_ID,
   TWITTER_ACCOUNT_ID,
   TWITTER_ACCOUNT_ID_FSC,
   TWITTER_ACCOUNT_ID_HUMANGUILD,
@@ -216,7 +215,7 @@ async function verifyUser(
   }
   const retweets: Retweet[] = await res.json();
   const retweeted = !!retweets.find(({ entities, quoted_status }) => {
-    if (quoted_status?.id_str !== RETWEET_ID) {
+    if (quoted_status?.id_str !== env.RETWEET_ID) {
       return false;
     }
     const includedHashTags = entities.hashtags.map(h => h.text.toLowerCase());
@@ -228,7 +227,7 @@ async function verifyUser(
   apiUrl = `https://api.twitter.com/1.1/favorites/list.json`;
   qs = {
     count: '1',
-    max_id: RETWEET_ID,
+    max_id: env.RETWEET_ID,
     include_entities: 'false'
   };
   signature = createSignature({
@@ -253,7 +252,7 @@ async function verifyUser(
     return new Response('', { status: res.status });
   }
   const likes: LikedTweet[] = await res.json();
-  const liked = likes[0]?.id_str === RETWEET_ID;
+  const liked = likes[0]?.id_str === env.RETWEET_ID;
 
   const user: TwitterUser = {
     name,

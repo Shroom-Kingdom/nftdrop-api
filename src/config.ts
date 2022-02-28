@@ -1,8 +1,3 @@
-// Change these variables on airdrop campaign launch
-export const DATE_THRESHOLD = new Date('2022-02-15');
-export const RETWEET_ID = '1468678836632133638';
-
-// do not change these
 export const TWITTER_ACCOUNT_ID = '1415961588016816129';
 export const TWITTER_ACCOUNT_ID_HUMANGUILD = '1382487765430898688';
 export const TWITTER_ACCOUNT_ID_NEAR_GAMES = '1427725808626511877';

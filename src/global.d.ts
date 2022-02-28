@@ -8,7 +8,7 @@ declare interface Env {
   DISCORD_SESSIONS: KVNamespace;
   TWITTER_SESSIONS: KVNamespace;
 
-  // Environment variables
+  // Secret variables
   DISCORD_BOT_TOKEN: string;
   DISCORD_CLIENT_ID: string;
   DISCORD_CLIENT_SECRET: string;
@@ -16,4 +16,8 @@ declare interface Env {
   CONSUMER_KEY: string;
   CONSUMER_SECRET: string;
   NEAR_KEY_PAIR: string;
+
+  // Environment variables
+  DATE_THRESHOLD: string;
+  RETWEET_ID: string;
 }

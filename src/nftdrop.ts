@@ -66,7 +66,10 @@ router
     if (walletId != null) {
       const nearAddr = env.NEAR.idFromName(walletId);
       const nearObj = env.NEAR.get(nearAddr);
-      const nearRes = await nearObj.fetch(req.url);
+      const nearRes = await nearObj.fetch(req.url, {
+        method: 'POST',
+        body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
+      });
       near = nearRes.ok;
     }
 
@@ -74,7 +77,10 @@ router
     if (discordOwnerId != null) {
       const discordAddr = env.DISCORD.idFromName(discordOwnerId);
       const discordObj = env.DISCORD.get(discordAddr);
-      const discordRes = await discordObj.fetch(req.url);
+      const discordRes = await discordObj.fetch(req.url, {
+        method: 'POST',
+        body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
+      });
       discord = discordRes.ok;
     }
 
@@ -142,7 +148,10 @@ router
 
     const nearAddr = env.NEAR.idFromName(walletId);
     const nearObj = env.NEAR.get(nearAddr);
-    const nearRes = await nearObj.fetch(req.url);
+    const nearRes = await nearObj.fetch(req.url, {
+      method: 'POST',
+      body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
+    });
     if (!nearRes.ok) {
       await logErrorResponse('POST Nftdrop check near', nearRes);
       return new Response('', { status: 403 });
@@ -150,7 +159,10 @@ router
 
     const discordAddr = env.DISCORD.idFromName(discord.id);
     const discordObj = env.DISCORD.get(discordAddr);
-    const discordRes = await discordObj.fetch(req.url);
+    const discordRes = await discordObj.fetch(req.url, {
+      method: 'POST',
+      body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
+    });
     if (!discordRes.ok) {
       await logErrorResponse('POST Nftdrop check discord', discordRes);
       return new Response('', { status: 403 });

@@ -1,6 +1,5 @@
 import { Router, Request } from 'itty-router';
 
-import { DATE_THRESHOLD } from './config';
 import { logErrorResponse } from './helpers';
 import { Session, SessionHeader } from './session';
 
@@ -18,13 +17,16 @@ export interface DiscordUser {
   solvedCaptcha: boolean;
 }
 
-export function isDiscordUserOk(user: DiscordUser): boolean {
+export function isDiscordUserOk(
+  user: DiscordUser,
+  dateThreshold: string
+): boolean {
   return (
     user.isMember &&
     user.verified &&
     user.acceptedRules &&
     user.solvedCaptcha &&
-    new Date(user.createdAt).valueOf() < DATE_THRESHOLD.valueOf()
+    new Date(user.createdAt).valueOf() < new Date(dateThreshold).valueOf()
   );
 }
 
@@ -210,8 +212,12 @@ export class Discord {
     this.state = state;
     this.user = null;
     this.router = Router()
-      .get('/nftdrop/*', async () => {
-        if (!this.user || !isDiscordUserOk(this.user)) {
+      .post('/nftdrop/*', async req => {
+        if (!req.json) {
+          return new Response('', { status: 400 });
+        }
+        const { dateThreshold } = await req.json();
+        if (!this.user || !isDiscordUserOk(this.user, dateThreshold)) {
           return new Response('', { status: 403 });
         }
         return new Response('', { status: 200 });
