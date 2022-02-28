@@ -60,22 +60,25 @@ export function isNearUserOk(user: NearUser, dateThreshold: string): boolean {
   );
 }
 
-export async function initContract(walletKey: string): Promise<NftContract> {
+export async function initContract(
+  walletKey: string,
+  env: Env
+): Promise<NftContract> {
   const keyStore = new keyStores.InMemoryKeyStore();
   const keyPair = KeyPair.fromString(walletKey);
-  keyStore.setKey('testnet', 'near-chan-v5.shrm.testnet', keyPair);
+  keyStore.setKey(env.NETWORK_ID, env.CONTRACT_ID, keyPair);
   const config = {
-    networkId: 'testnet',
+    networkId: env.NETWORK_ID,
     keyStore,
-    nodeUrl: 'https://rpc.testnet.near.org',
-    walletUrl: 'https://wallet.testnet.near.org',
-    helperUrl: 'https://helper.testnet.near.org',
-    explorerUrl: 'https://explorer.testnet.near.org',
+    nodeUrl: env.NODE_URL,
+    walletUrl: env.WALLET_URL,
+    helperUrl: env.HELPER_URL,
+    explorerUrl: env.EXPLORER_URL,
     headers: {}
   };
   const near = await connect(config);
-  const account = new Account(near.connection, 'near-chan-v5.shrm.testnet');
-  const contract = new Contract(account, 'near-chan-v5.shrm.testnet', {
+  const account = new Account(near.connection, env.CONTRACT_ID);
+  const contract = new Contract(account, env.CONTRACT_ID, {
     changeMethods: ['nft_approve', 'nft_revoke'],
     viewMethods: ['nft_metadata', 'nft_tokens_for_owner', 'nft_token']
   }) as NftContract;
@@ -199,20 +202,18 @@ function pointsToLevel(points: number): {
 
 export class Near {
   private state: DurableObjectState;
+  private env: Env;
   private initializePromise: Promise<void> | undefined;
   private user?: NearUser | null;
   private router: Router<unknown>;
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: Env) {
     this.state = state;
+    this.env = env;
     this.user = null;
     this.router = Router()
-      .post('/nftdrop/*', async req => {
-        if (!req.json) {
-          return new Response('', { status: 400 });
-        }
-        const { dateThreshold } = await req.json();
-        if (!this.user || !isNearUserOk(this.user, dateThreshold)) {
+      .get('/nftdrop/*', async () => {
+        if (!this.user || !isNearUserOk(this.user, this.env.DATE_THRESHOLD)) {
           return new Response('', { status: 403 });
         }
         return new Response('', { status: 200 });

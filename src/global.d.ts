@@ -20,4 +20,10 @@ declare interface Env {
   // Environment variables
   DATE_THRESHOLD: string;
   RETWEET_ID: string;
+  CONTRACT_ID: string;
+  NETWORK_ID: string;
+  NODE_URL: string;
+  WALLET_URL: string;
+  HELPER_URL: string;
+  EXPLORER_URL: string;
 }

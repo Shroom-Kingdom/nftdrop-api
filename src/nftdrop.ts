@@ -66,10 +66,7 @@ router
     if (walletId != null) {
       const nearAddr = env.NEAR.idFromName(walletId);
       const nearObj = env.NEAR.get(nearAddr);
-      const nearRes = await nearObj.fetch(req.url, {
-        method: 'POST',
-        body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
-      });
+      const nearRes = await nearObj.fetch(req.url);
       near = nearRes.ok;
     }
 
@@ -77,10 +74,7 @@ router
     if (discordOwnerId != null) {
       const discordAddr = env.DISCORD.idFromName(discordOwnerId);
       const discordObj = env.DISCORD.get(discordAddr);
-      const discordRes = await discordObj.fetch(req.url, {
-        method: 'POST',
-        body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
-      });
+      const discordRes = await discordObj.fetch(req.url);
       discord = discordRes.ok;
     }
 
@@ -148,10 +142,7 @@ router
 
     const nearAddr = env.NEAR.idFromName(walletId);
     const nearObj = env.NEAR.get(nearAddr);
-    const nearRes = await nearObj.fetch(req.url, {
-      method: 'POST',
-      body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
-    });
+    const nearRes = await nearObj.fetch(req.url);
     if (!nearRes.ok) {
       await logErrorResponse('POST Nftdrop check near', nearRes);
       return new Response('', { status: 403 });
@@ -159,10 +150,7 @@ router
 
     const discordAddr = env.DISCORD.idFromName(discord.id);
     const discordObj = env.DISCORD.get(discordAddr);
-    const discordRes = await discordObj.fetch(req.url, {
-      method: 'POST',
-      body: JSON.stringify({ dateThreshold: env.DATE_THRESHOLD })
-    });
+    const discordRes = await discordObj.fetch(req.url);
     if (!discordRes.ok) {
       await logErrorResponse('POST Nftdrop check discord', discordRes);
       return new Response('', { status: 403 });
@@ -198,6 +186,7 @@ router
 
 export class Nftdrop {
   private state: DurableObjectState;
+  private env: Env;
   private initializePromise?: Promise<void>;
   private account?: Account;
   private contract?: NftContract;
@@ -205,8 +194,9 @@ export class Nftdrop {
   private availableNfts?: AvailableNfts;
   private router: Router<unknown>;
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: Env) {
     this.state = state;
+    this.env = env;
     this.router = Router({ base: '/nftdrop' })
       .get('/info', () => {
         if (!this.availableNfts) {
@@ -356,13 +346,13 @@ export class Nftdrop {
 
   async initializeAccount(walletKey: string): Promise<void> {
     if (!this.account || !this.contract || !this.availableNfts) {
-      this.contract = await initContract(walletKey);
+      this.contract = await initContract(walletKey, this.env);
 
       const { base_uri } = await this.contract.nft_metadata();
       this.baseUri = base_uri;
 
       const nfts = await this.contract.nft_tokens_for_owner({
-        account_id: 'near-chan-v5.shrm.testnet'
+        account_id: this.env.CONTRACT_ID
       });
       this.availableNfts = {
         [NftType.Smb1Small]: [],

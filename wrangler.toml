@@ -13,6 +13,12 @@ kv_namespaces = [
 [vars]
 DATE_THRESHOLD = "2022-02-15"
 RETWEET_ID = "1468678836632133638"
+CONTRACT_ID = "near-chan-v6.shrm.testnet"
+NETWORK_ID = "testnet"
+NODE_URL = "https://rpc.testnet.near.org"
+WALLET_URL = "https://wallet.testnet.near.org"
+HELPER_URL = "https://helper.testnet.near.org"
+EXPLORER_URL = "https://explorer.testnet.near.org"
 
 [durable_objects]
 bindings = [
@@ -51,6 +57,12 @@ kv_namespaces = [
 [env.production.vars]
 DATE_THRESHOLD = "2022-02-15"
 RETWEET_ID = "1468678836632133638"
+CONTRACT_ID = "near-chan-v6.shrm.testnet"
+NETWORK_ID = "testnet"
+NODE_URL = "https://rpc.testnet.near.org"
+WALLET_URL = "https://wallet.testnet.near.org"
+HELPER_URL = "https://helper.testnet.near.org"
+EXPLORER_URL = "https://explorer.testnet.near.org"
 
 [env.production.durable_objects]
 bindings = [

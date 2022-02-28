@@ -204,20 +204,21 @@ function convertIDtoDate(id: string): Date {
 
 export class Discord {
   private state: DurableObjectState;
+  private env: Env;
   private initializePromise: Promise<void> | undefined;
   private user?: DiscordUser | null;
   private router: Router<unknown>;
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: Env) {
     this.state = state;
+    this.env = env;
     this.user = null;
     this.router = Router()
-      .post('/nftdrop/*', async req => {
-        if (!req.json) {
-          return new Response('', { status: 400 });
-        }
-        const { dateThreshold } = await req.json();
-        if (!this.user || !isDiscordUserOk(this.user, dateThreshold)) {
+      .get('/nftdrop/*', async () => {
+        if (
+          !this.user ||
+          !isDiscordUserOk(this.user, this.env.DATE_THRESHOLD)
+        ) {
           return new Response('', { status: 403 });
         }
         return new Response('', { status: 200 });
