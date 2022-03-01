@@ -14,7 +14,7 @@ export interface NearUser {
 }
 
 export interface NftContract extends Contract {
-  nft_metadata: ContractViewCall<unknown, { base_uri: string }>;
+  nft_metadata: ContractViewCall<unknown, { base_uri?: string }>;
   nft_tokens_for_owner: ContractViewCall<
     {
       account_id: string;

@@ -16,6 +16,7 @@ declare interface Env {
   CONSUMER_KEY: string;
   CONSUMER_SECRET: string;
   NEAR_KEY_PAIR: string;
+  RESET_PASSWORD: string;
 
   // Environment variables
   DATE_THRESHOLD: string;

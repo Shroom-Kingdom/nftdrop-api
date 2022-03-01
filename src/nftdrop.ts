@@ -182,6 +182,22 @@ router
       await logErrorResponse('POST Nftdrop add', res);
     }
     return res;
+  })
+  .post('/reset', async (req, env: Env) => {
+    if (!req.json) {
+      return new Response('', { status: 400 });
+    }
+    const { password }: { password: string } = await req.json();
+    if (password !== env.RESET_PASSWORD || env.RESET_PASSWORD == null) {
+      return new Response('', { status: 401 });
+    }
+
+    const addr = env.NFTDROP.idFromName('1');
+    const obj = env.NFTDROP.get(addr);
+    const res = await obj.fetch(req.url, {
+      method: 'POST'
+    });
+    return res;
   });
 
 export class Nftdrop {
@@ -240,7 +256,9 @@ export class Nftdrop {
           });
           const approvalId = token.approved_account_ids[walletId];
 
-          const imgSrc = `${this.baseUri}/${token.metadata.media}`;
+          const imgSrc = `${this.baseUri ? `${this.baseUri}/` : ''}${
+            token.metadata.media
+          }`;
 
           return new Response(
             JSON.stringify({
@@ -327,11 +345,17 @@ export class Nftdrop {
         });
         const approvalId = token.approved_account_ids[walletId];
 
-        const imgSrc = `${this.baseUri}/${token.metadata.media}`;
+        const imgSrc = `${this.baseUri ? `${this.baseUri}/` : ''}${
+          token.metadata.media
+        }`;
 
         return new Response(
           JSON.stringify({ tokenId: availableNft.token_id, approvalId, imgSrc })
         );
+      })
+      .post('/reset', async () => {
+        await this.state.storage.deleteAll();
+        return new Response('', { status: 204 });
       });
   }
 
