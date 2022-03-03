@@ -116,7 +116,8 @@ router.get('/:walletId', async (req, env: Env) => {
     walletId,
     points,
     level,
-    staked,
+    // workaround for wrong api result on testnet for staking
+    staked: env.NETWORK_ID === 'testnet' ? true : staked,
     creditToNextLevel,
     requiredToNextLevel,
     createdAt
