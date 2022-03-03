@@ -271,12 +271,7 @@ export class Nftdrop {
         return new Response('', { status: 400 });
       })
       .post('/claim', async req => {
-        if (
-          !req.json ||
-          !this.availableNfts ||
-          !this.contract ||
-          !this.baseUri
-        ) {
+        if (!req.json || !this.availableNfts || !this.contract) {
           return new Response('', { status: 400 });
         }
         const {
