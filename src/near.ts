@@ -94,19 +94,19 @@ router.get('/:walletId', async (req, env: Env) => {
     return new Response('', { status: 400 });
   }
 
-  const levelRes = await getLevel(walletId);
+  const levelRes = await getLevel(walletId, env);
   if (levelRes instanceof Response) {
     return Response;
   }
   const { points, level, creditToNextLevel, requiredToNextLevel } = levelRes;
 
-  const stakeRes = await getStakeBadge(walletId);
+  const stakeRes = await getStakeBadge(walletId, env);
   if (stakeRes instanceof Response) {
     return Response;
   }
   const staked = stakeRes;
 
-  const createdRes = await getCreatedAt(walletId);
+  const createdRes = await getCreatedAt(walletId, env);
   if (createdRes instanceof Response) {
     return Response;
   }
@@ -136,7 +136,10 @@ router.get('/:walletId', async (req, env: Env) => {
   return new Response(JSON.stringify(user));
 });
 
-async function getLevel(walletId: string): Promise<
+async function getLevel(
+  walletId: string,
+  env: Env
+): Promise<
   | {
       points: number;
       level: number;
@@ -146,7 +149,7 @@ async function getLevel(walletId: string): Promise<
   | Response
 > {
   const res = await fetch(
-    `https://api.stats.gallery/testnet/score-calculate?account_id=${walletId}`
+    `https://api.stats.gallery/${env.NETWORK_ID}/score-calculate?account_id=${walletId}`
   );
   if (!res.ok) {
     logErrorResponse('GET Near level', res);
@@ -159,9 +162,12 @@ async function getLevel(walletId: string): Promise<
   return { points, level, requiredToNextLevel, creditToNextLevel };
 }
 
-async function getStakeBadge(walletId: string): Promise<boolean | Response> {
+async function getStakeBadge(
+  walletId: string,
+  env: Env
+): Promise<boolean | Response> {
   const res = await fetch(
-    `https://api.stats.gallery/testnet/badge-stake?account_id=${walletId}`
+    `https://api.stats.gallery/${env.NETWORK_ID}/badge-stake?account_id=${walletId}`
   );
   if (!res.ok) {
     logErrorResponse('GET Near stake badge', res);
@@ -172,9 +178,12 @@ async function getStakeBadge(walletId: string): Promise<boolean | Response> {
   return result === 1;
 }
 
-async function getCreatedAt(walletId: string): Promise<number | Response> {
+async function getCreatedAt(
+  walletId: string,
+  env: Env
+): Promise<number | Response> {
   const res = await fetch(
-    `https://api.stats.gallery/testnet/account-creation?account_id=${walletId}`
+    `https://api.stats.gallery/${env.NETWORK_ID}/account-creation?account_id=${walletId}`
   );
   if (!res.ok) {
     logErrorResponse('GET Near created at', res);
