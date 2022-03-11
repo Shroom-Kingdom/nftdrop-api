@@ -47,7 +47,18 @@ interface LikedTweet {
 }
 
 export function isTwitterUserOk(user: TwitterUser): boolean {
-  return user.verified && user.isFollowing && user.retweeted && user.liked;
+  return (
+    user.verified &&
+    user.isFollowing &&
+    user.retweeted &&
+    user.liked &&
+    user.isFollowingHumanguild &&
+    user.isFollowingNEARGames &&
+    user.isFollowingNEARProtocol &&
+    user.isFollowingNNC &&
+    user.isFollowingFSC &&
+    user.isFollowingASAC
+  );
 }
 
 router
