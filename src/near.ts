@@ -18,8 +18,17 @@ export interface NftContract extends Contract {
   nft_tokens_for_owner: ContractViewCall<
     {
       account_id: string;
+      from_index: string;
+      limit: number;
     },
     NftMetadata[]
+  >;
+  nft_unclaimed_airdrop_tokens: ContractViewCall<
+    {
+      from_index: string;
+      limit: number;
+    },
+    string
   >;
   nft_token: ContractViewCall<
     {
@@ -80,7 +89,12 @@ export async function initContract(
   const account = new Account(near.connection, env.CONTRACT_ID);
   const contract = new Contract(account, env.CONTRACT_ID, {
     changeMethods: ['nft_approve', 'nft_revoke'],
-    viewMethods: ['nft_metadata', 'nft_tokens_for_owner', 'nft_token']
+    viewMethods: [
+      'nft_metadata',
+      'nft_tokens_for_owner',
+      'nft_token',
+      'nft_unclaimed_airdrop_tokens'
+    ]
   }) as NftContract;
   return contract;
 }

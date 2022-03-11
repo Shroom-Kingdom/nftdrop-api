@@ -27,12 +27,12 @@ enum NftType {
 }
 
 interface AvailableNfts {
-  [NftType.Smb1Small]: NftMetadata[];
-  [NftType.Smb1Big]: NftMetadata[];
-  [NftType.Smb3Small]: NftMetadata[];
-  [NftType.Smb3Big]: NftMetadata[];
-  [NftType.SmwSmall]: NftMetadata[];
-  [NftType.SmwBig]: NftMetadata[];
+  [NftType.Smb1Small]: string[];
+  [NftType.Smb1Big]: string[];
+  [NftType.Smb3Small]: string[];
+  [NftType.Smb3Big]: string[];
+  [NftType.SmwSmall]: string[];
+  [NftType.SmwBig]: string[];
 }
 
 interface DistributedNft {
@@ -204,10 +204,20 @@ export class Nftdrop {
   private state: DurableObjectState;
   private env: Env;
   private initializePromise?: Promise<void>;
+  private scanPromise?: Promise<void>;
   private account?: Account;
   private contract?: NftContract;
   private baseUri?: string;
-  private availableNfts?: AvailableNfts;
+  private availableNfts: AvailableNfts = {
+    [NftType.Smb1Small]: [],
+    [NftType.Smb1Big]: [],
+    [NftType.Smb3Small]: [],
+    [NftType.Smb3Big]: [],
+    [NftType.SmwSmall]: [],
+    [NftType.SmwBig]: []
+  };
+  private scannedAllNfts = false;
+  private fromIndex = 0;
   private router: Router<unknown>;
 
   constructor(state: DurableObjectState, env: Env) {
@@ -225,7 +235,8 @@ export class Nftdrop {
             [NftType.Smb3Small]: this.availableNfts[NftType.Smb3Small].length,
             [NftType.Smb3Big]: this.availableNfts[NftType.Smb3Big].length,
             [NftType.SmwSmall]: this.availableNfts[NftType.SmwSmall].length,
-            [NftType.SmwBig]: this.availableNfts[NftType.SmwBig].length
+            [NftType.SmwBig]: this.availableNfts[NftType.SmwBig].length,
+            scannedAllNfts: this.scannedAllNfts
           })
         );
       })
@@ -303,7 +314,7 @@ export class Nftdrop {
           return new Response('', { status: 403 });
         }
         const distributedNft: DistributedNft = {
-          token_id: availableNft.token_id,
+          token_id: availableNft,
           nft,
           owner: {
             walletId,
@@ -316,7 +327,7 @@ export class Nftdrop {
           await this.contract.nft_approve({
             args: {
               account_id: walletId,
-              token_id: availableNft.token_id
+              token_id: availableNft
             },
             amount: '240000000000000000000'
           });
@@ -336,7 +347,7 @@ export class Nftdrop {
         );
 
         const token = await this.contract.nft_token({
-          token_id: availableNft.token_id
+          token_id: availableNft
         });
         const approvalId = token.approved_account_ids[walletId];
 
@@ -345,7 +356,7 @@ export class Nftdrop {
         }`;
 
         return new Response(
-          JSON.stringify({ tokenId: availableNft.token_id, approvalId, imgSrc })
+          JSON.stringify({ tokenId: availableNft, approvalId, imgSrc })
         );
       })
       .post('/reset', async () => {
@@ -359,91 +370,83 @@ export class Nftdrop {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const walletKey = await (req as any).headers.get('Wallet-Key');
     if (walletKey) {
-      await this.initializeAccount(walletKey);
+      await this.initializeContract(walletKey);
     }
   }
 
-  async initializeAccount(walletKey: string): Promise<void> {
+  async initializeContract(walletKey: string): Promise<void> {
     if (!this.account || !this.contract || !this.availableNfts) {
       this.contract = await initContract(walletKey, this.env);
 
       const { base_uri } = await this.contract.nft_metadata();
       this.baseUri = base_uri;
+    }
+  }
 
+  async initializeAccount(): Promise<void> {
+    if (!this.contract) return;
+    const step = 50;
+    for (; this.fromIndex < 10000; this.fromIndex += step) {
       const nfts = await this.contract.nft_tokens_for_owner({
-        account_id: this.env.CONTRACT_ID
+        account_id: this.env.CONTRACT_ID,
+        from_index: String(this.fromIndex),
+        limit: step
       });
-      this.availableNfts = {
-        [NftType.Smb1Small]: [],
-        [NftType.Smb1Big]: [],
-        [NftType.Smb3Small]: [],
-        [NftType.Smb3Big]: [],
-        [NftType.SmwSmall]: [],
-        [NftType.SmwBig]: []
-      };
-      for (const nft of nfts) {
-        for (const accountId of Object.keys(nft.approved_account_ids)) {
-          await this.revokeNftApproval(this.contract, nft, accountId);
-        }
-
-        const [token_id] = nft.token_id.split(':') as [NftType];
-        /* eslint-disable @typescript-eslint/no-non-null-assertion */
-        match(token_id)
-          .with(NftType.Smb1Small, () => {
-            this.availableNfts![NftType.Smb1Small].push({
-              token_id: nft.token_id,
-              approved_account_ids: {},
-              metadata: nft.metadata
-            });
-          })
-          .with(NftType.Smb1Big, () => {
-            this.availableNfts![NftType.Smb1Big].push({
-              token_id: nft.token_id,
-              approved_account_ids: {},
-              metadata: nft.metadata
-            });
-          })
-          .with(NftType.Smb3Small, () => {
-            this.availableNfts![NftType.Smb3Small].push({
-              token_id: nft.token_id,
-              approved_account_ids: {},
-              metadata: nft.metadata
-            });
-          })
-          .with(NftType.Smb3Big, () => {
-            this.availableNfts![NftType.Smb3Big].push({
-              token_id: nft.token_id,
-              approved_account_ids: {},
-              metadata: nft.metadata
-            });
-          })
-          .with(NftType.SmwSmall, () => {
-            this.availableNfts![NftType.SmwSmall].push({
-              token_id: nft.token_id,
-              approved_account_ids: {},
-              metadata: nft.metadata
-            });
-          })
-          .with(NftType.SmwBig, () => {
-            this.availableNfts![NftType.SmwBig].push({
-              token_id: nft.token_id,
-              approved_account_ids: {},
-              metadata: nft.metadata
-            });
-          })
-          .exhaustive();
+      if (nfts.length === 0) {
+        this.scannedAllNfts = true;
+        return;
       }
+      this.addNfts(nfts);
+    }
+  }
+
+  // TODO warmup indicator
+  async addNfts(nfts: NftMetadata[]): Promise<void> {
+    if (!this.contract) return;
+    for (const nft of nfts) {
+      for (const accountId of Object.keys(nft.approved_account_ids)) {
+        await this.revokeNftApproval(this.contract, nft, accountId);
+      }
+
+      const [token_id] = nft.token_id.split(':') as [NftType];
+      /* eslint-disable @typescript-eslint/no-non-null-assertion */
+      match(token_id)
+        .with(NftType.Smb1Small, () => {
+          this.availableNfts![NftType.Smb1Small].push(nft.token_id);
+        })
+        .with(NftType.Smb1Big, () => {
+          this.availableNfts![NftType.Smb1Big].push(nft.token_id);
+        })
+        .with(NftType.Smb3Small, () => {
+          this.availableNfts![NftType.Smb3Small].push(nft.token_id);
+        })
+        .with(NftType.Smb3Big, () => {
+          this.availableNfts![NftType.Smb3Big].push(nft.token_id);
+        })
+        .with(NftType.SmwSmall, () => {
+          this.availableNfts![NftType.SmwSmall].push(nft.token_id);
+        })
+        .with(NftType.SmwBig, () => {
+          this.availableNfts![NftType.SmwBig].push(nft.token_id);
+        })
+        .exhaustive();
     }
   }
 
   async fetch(request: Request): Promise<Response> {
-    if (!this.initializePromise) {
+    if (!this.initializePromise || !this.scannedAllNfts) {
       this.initializePromise = this.initialize(request).catch(err => {
         this.initializePromise = undefined;
         throw err;
       });
     }
     await this.initializePromise;
+
+    if (!this.scannedAllNfts && !this.scanPromise) {
+      this.scanPromise = this.initializeAccount().finally(() => {
+        this.scanPromise = undefined;
+      });
+    }
 
     return this.router.handle(request);
   }
