@@ -3,6 +3,7 @@ import { Router, Request } from 'itty-router';
 import {
   REQUIRED_RT_HASHTAGS,
   TWITTER_ACCOUNT_ID,
+  TWITTER_ACCOUNT_ID_ASAC,
   TWITTER_ACCOUNT_ID_FSC,
   TWITTER_ACCOUNT_ID_HUMANGUILD,
   TWITTER_ACCOUNT_ID_NEAR_GAMES,
@@ -27,6 +28,7 @@ export interface TwitterUser {
   isFollowingNEARProtocol: boolean;
   isFollowingNNC: boolean;
   isFollowingFSC: boolean;
+  isFollowingASAC: boolean;
   retweeted: boolean;
   liked: boolean;
 }
@@ -172,7 +174,8 @@ async function verifyUser(
     [TWITTER_ACCOUNT_ID_NEAR_GAMES]: false,
     [TWITTER_ACCOUNT_ID_NEAR_PROTOCOL]: false,
     [TWITTER_ACCOUNT_ID_NNC]: false,
-    [TWITTER_ACCOUNT_ID_FSC]: false
+    [TWITTER_ACCOUNT_ID_FSC]: false,
+    [TWITTER_ACCOUNT_ID_ASAC]: false
   };
   const isFollowingRes = await checkIsFollowing(twitterSession, follows, env);
   if (isFollowingRes instanceof Response) {
@@ -184,6 +187,7 @@ async function verifyUser(
   const isFollowingNEARProtocol = follows[TWITTER_ACCOUNT_ID_NEAR_PROTOCOL];
   const isFollowingNNC = follows[TWITTER_ACCOUNT_ID_NNC];
   const isFollowingFSC = follows[TWITTER_ACCOUNT_ID_FSC];
+  const isFollowingASAC = follows[TWITTER_ACCOUNT_ID_ASAC];
 
   apiUrl = `https://api.twitter.com/1.1/statuses/user_timeline.json`;
   qs = {
@@ -264,6 +268,7 @@ async function verifyUser(
     isFollowingNEARProtocol,
     isFollowingNNC,
     isFollowingFSC,
+    isFollowingASAC,
     retweeted,
     liked
   };
