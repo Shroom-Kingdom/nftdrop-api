@@ -55,8 +55,8 @@ kv_namespaces = [
 ]
 
 [env.production.vars]
-DATE_THRESHOLD = "2002-02-15"
-RETWEET_ID = "1468678836632133638"
+DATE_THRESHOLD = "2022-02-15"
+RETWEET_ID = "1502743305947422726"
 CONTRACT_ID = "near-chan.shrm.near"
 NETWORK_ID = "mainnet"
 NODE_URL = "https://rpc.mainnet.near.org"
