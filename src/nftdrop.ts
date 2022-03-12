@@ -329,7 +329,7 @@ export class Nftdrop {
               account_id: walletId,
               token_id: availableNft
             },
-            amount: '240000000000000000000'
+            amount: '800000000000000000000'
           });
         } catch (err) {
           this.availableNfts[nft].push(availableNft);
